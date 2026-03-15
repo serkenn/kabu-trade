@@ -490,8 +490,8 @@ cd kabu-trade
 cp .env.example .env
 # .env を編集 (下記「環境変数」セクション参照)
 
-# 3. コンテナ起動
-docker compose up -d
+# 3. コンテナ起動 (初回は自動ビルド)
+docker compose up -d --build
 ```
 
 起動後のアクセス先:
@@ -589,7 +589,8 @@ npm run dev:admin      # localhost:3001
 
 | コマンド | 説明 |
 |---|---|
-| `docker compose up -d` | 全コンテナをバックグラウンド起動 |
+| `docker compose up -d --build` | 全コンテナをビルド＆バックグラウンド起動 |
+| `docker compose up -d` | 既存イメージで起動（コード変更なし時） |
 | `docker compose down` | 全コンテナ停止・削除 |
 | `docker compose logs -f backend` | バックエンドのログをリアルタイム表示 |
 
