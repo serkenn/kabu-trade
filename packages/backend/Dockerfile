@@ -26,6 +26,10 @@ RUN npm -w packages/backend run build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+
+# OpenSSL for Prisma on Alpine
+RUN apk add --no-cache openssl
+
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 appuser
 
 COPY --from=builder /app/package.json ./
@@ -33,6 +37,9 @@ COPY --from=builder /app/packages/shared ./packages/shared/
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist/
 COPY --from=builder /app/packages/backend/package.json ./packages/backend/
 COPY --from=deps /app/node_modules ./node_modules
+
+# Prisma engines need write access
+RUN chown -R appuser:nodejs /app/node_modules/@prisma
 
 USER appuser
 EXPOSE 4000
