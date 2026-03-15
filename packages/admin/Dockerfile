@@ -21,7 +21,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/shared/src ./packages/shared/src/
 COPY packages/shared/prisma ./packages/shared/prisma/
 COPY packages/admin ./packages/admin/
-RUN cd packages/admin && npx next build
+RUN mkdir -p packages/admin/public && cd packages/admin && npx next build
 
 # Production
 FROM base AS runner

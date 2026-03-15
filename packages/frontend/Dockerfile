@@ -21,7 +21,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/shared/src ./packages/shared/src/
 COPY packages/shared/prisma ./packages/shared/prisma/
 COPY packages/frontend ./packages/frontend/
-RUN cd packages/frontend && npx next build
+RUN mkdir -p packages/frontend/public && cd packages/frontend && npx next build
 
 # Production
 FROM base AS runner
