@@ -3,18 +3,19 @@ FROM node:20-alpine AS base
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/shared/prisma ./packages/shared/prisma/
-RUN npm install -w packages/shared -w packages/backend
+RUN npm ci -w packages/shared -w packages/backend && \
+    mkdir -p packages/shared/node_modules packages/backend/node_modules
 
 # Build
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=deps /app/packages/backend/node_modules ./packages/backend/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules/
+COPY --from=deps /app/packages/backend/node_modules ./packages/backend/node_modules/
 COPY package.json tsconfig.base.json ./
 COPY packages/shared ./packages/shared/
 COPY packages/backend ./packages/backend/
@@ -31,9 +32,7 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/packages/shared ./packages/shared/
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist/
 COPY --from=builder /app/packages/backend/package.json ./packages/backend/
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=deps /app/packages/backend/node_modules ./packages/backend/node_modules
+COPY --from=deps /app/node_modules ./node_modules
 
 USER appuser
 EXPOSE 4000

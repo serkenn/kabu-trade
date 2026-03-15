@@ -3,18 +3,19 @@ FROM node:20-alpine AS base
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/shared/prisma ./packages/shared/prisma/
-RUN npm install -w packages/shared -w packages/frontend
+RUN npm ci -w packages/shared -w packages/frontend && \
+    mkdir -p packages/shared/node_modules packages/frontend/node_modules
 
 # Build
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=deps /app/packages/frontend/node_modules ./packages/frontend/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules/
+COPY --from=deps /app/packages/frontend/node_modules ./packages/frontend/node_modules/
 COPY package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/shared/src ./packages/shared/src/
