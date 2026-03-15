@@ -16,12 +16,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules/
 COPY --from=deps /app/packages/frontend/node_modules ./packages/frontend/node_modules/
-COPY package.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/shared/src ./packages/shared/src/
-COPY packages/shared/prisma ./packages/shared/prisma/
+COPY package.json tsconfig.base.json ./
+COPY packages/shared ./packages/shared/
 COPY packages/frontend ./packages/frontend/
 RUN mkdir -p packages/frontend/public
+# Build shared first so dist/index.js exists
+RUN npx tsc -p packages/shared/tsconfig.json
 ENV BACKEND_URL=http://backend:4000
 RUN cd packages/frontend && npx next build
 
