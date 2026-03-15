@@ -20,6 +20,8 @@ COPY package.json tsconfig.base.json ./
 COPY packages/shared ./packages/shared/
 COPY packages/backend ./packages/backend/
 RUN npx -w packages/shared prisma generate
+# Build shared first, then backend
+RUN npx tsc -p packages/shared/tsconfig.json
 RUN npm -w packages/backend run build
 
 # Production
@@ -33,9 +35,14 @@ RUN apk add --no-cache openssl
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 appuser
 
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/packages/shared ./packages/shared/
+# Shared: copy dist + package.json + prisma
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist/
+COPY --from=builder /app/packages/shared/prisma ./packages/shared/prisma/
+# Backend: copy dist + package.json
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist/
 COPY --from=builder /app/packages/backend/package.json ./packages/backend/
+# Dependencies
 COPY --from=deps /app/node_modules ./node_modules
 
 # Prisma engines need write access

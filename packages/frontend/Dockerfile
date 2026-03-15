@@ -21,7 +21,9 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/shared/src ./packages/shared/src/
 COPY packages/shared/prisma ./packages/shared/prisma/
 COPY packages/frontend ./packages/frontend/
-RUN mkdir -p packages/frontend/public && cd packages/frontend && npx next build
+RUN mkdir -p packages/frontend/public
+ENV BACKEND_URL=http://backend:4000
+RUN cd packages/frontend && npx next build
 
 # Production
 FROM base AS runner
@@ -29,7 +31,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# Next.js standalone output in monorepo puts files under the full path
+# standalone output preserves monorepo structure
 COPY --from=builder /app/packages/frontend/public ./packages/frontend/public
 COPY --from=builder /app/packages/frontend/.next/standalone ./
 COPY --from=builder /app/packages/frontend/.next/static ./packages/frontend/.next/static
