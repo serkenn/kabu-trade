@@ -11,7 +11,7 @@ const CLIENT_ID = process.env.EVEX_CLIENT_ID;
 const CLIENT_SECRET = process.env.EVEX_CLIENT_SECRET;
 const REDIRECT_URI = process.env.EVEX_REDIRECT_URI;
 
-const SCOPES = "openid profile email discord_id";
+const SCOPES = "openid email profile offline_access discord_id discord_roles";
 
 export interface EvexUser {
   sub: string;
@@ -19,6 +19,8 @@ export interface EvexUser {
   email_verified?: boolean;
   name: string;
   picture?: string;
+  discord_id?: string | null;
+  discord_roles?: string[] | null;
 }
 
 export function isEvexConfigured(): boolean {
