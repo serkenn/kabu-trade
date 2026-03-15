@@ -11,7 +11,7 @@ const CLIENT_ID = process.env.EVEX_CLIENT_ID;
 const CLIENT_SECRET = process.env.EVEX_CLIENT_SECRET;
 const REDIRECT_URI = process.env.EVEX_REDIRECT_URI;
 
-const SCOPES = "openid profile email";
+const SCOPES = "openid profile email discord_id";
 
 export interface EvexUser {
   sub: string;
