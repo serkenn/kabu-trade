@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  PENDING
+  FILLED
+  PARTIALLY_FILLED
+  CANCELLED
+}
+
+enum TradeType {
+  SPOT
+  MARGIN
+}
+
+enum MarginSide {
+  LONG
+  SHORT
+}
+
+enum MarginPositionStatus {
+  OPEN
+  CLOSED
+  LIQUIDATED
+}
+
+enum Market {
+  JP
+  US
+}
+
+model User {
+  id              String    @id @default(cuid())
+  externalId      String?   @unique @map("external_id")
+  email           String    @unique
+  name            String
+  passwordHash    String    @map("password_hash")
+  role            Role      @default(USER)
+  balance         Float     @default(10000000)
+  balanceUsd      Float     @default(0) @map("balance_usd")
+  marginRate      Float     @default(3.0) @map("margin_rate")
+  isActive        Boolean   @default(true) @map("is_active")
+  // セキュリティ
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+  passwordChangedAt   DateTime  @default(now()) @map("password_changed_at")
+  lastLoginAt         DateTime? @map("last_login_at")
+  lastLoginIp         String?   @map("last_login_ip")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  orders          Order[]
+  holdings        Holding[]
+  marginPositions MarginPosition[]
+  transactions    Transaction[]
+  apiKeys         ApiKey[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  tokenHash   String   @unique @map("token_hash") // JWTのハッシュ値のみ保存
+  ipAddress   String   @map("ip_address")
+  userAgent   String   @map("user_agent")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  name        String
+  keyHash     String    @unique @map("key_hash")     // SHA-256ハッシュのみ保存
+  keyPrefix   String    @map("key_prefix")            // "kt_abc1234" 表示用
+  permissions String[]
+  isActive    Boolean   @default(true) @map("is_active")
+  lastUsedAt  DateTime? @map("last_used_at")
+  lastUsedIp  String?   @map("last_used_ip")
+  expiresAt   DateTime? @map("expires_at")            // 有効期限
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?  @map("user_id")
+  action      String   // LOGIN, LOGIN_FAILED, LOGOUT, ORDER, MARGIN_CLOSE, ADMIN_ACTION, API_KEY_CREATED, etc.
+  resource    String?  // 対象リソース (order:xxx, user:xxx, etc.)
+  detail      String?  // 詳細情報 (JSON)
+  ipAddress   String   @map("ip_address")
+  userAgent   String   @default("") @map("user_agent")
+  severity    String   @default("INFO") // INFO, WARNING, CRITICAL
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([severity])
+  @@map("audit_logs")
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  userId      String      @map("user_id")
+  symbol      String
+  market      Market
+  side        OrderSide
+  type        OrderType
+  tradeType   TradeType   @default(SPOT) @map("trade_type")
+  quantity    Int
+  price       Float?
+  filledPrice Float?      @map("filled_price")
+  filledQty   Int         @default(0) @map("filled_qty")
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([symbol, market])
+  @@map("orders")
+}
+
+model Holding {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  symbol      String
+  market      Market
+  quantity    Int
+  avgCost     Float    @map("avg_cost")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, symbol, market])
+  @@map("holdings")
+}
+
+model MarginPosition {
+  id              String               @id @default(cuid())
+  userId          String               @map("user_id")
+  symbol          String
+  market          Market
+  side            MarginSide
+  quantity        Int
+  entryPrice      Float                @map("entry_price")
+  exitPrice       Float?               @map("exit_price")
+  margin          Float
+  status          MarginPositionStatus @default(OPEN)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  closedAt        DateTime?            @map("closed_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  user            User                 @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([symbol, market])
+  @@map("margin_positions")
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  type        String
+  amount      Float
+  currency    String   @default("JPY")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("transactions")
+}
+
+model StockCache {
+  id        String   @id @default(cuid())
+  symbol    String
+  market    Market
+  data      String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([symbol, market])
+  @@map("stock_cache")
+}

@@ -1,0 +1,20 @@
+{
+  "name": "kabu-trade",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "packages/backend",
+    "packages/frontend",
+    "packages/admin"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:backend": "npm -w packages/backend run dev",
+    "dev:frontend": "npm -w packages/frontend run dev",
+    "dev:admin": "npm -w packages/admin run dev",
+    "build": "npm run build --workspaces --if-present",
+    "db:push": "npm -w packages/shared run db:push",
+    "db:seed": "npm -w packages/shared run db:seed",
+    "db:studio": "npm -w packages/shared run db:studio"
+  }
+}

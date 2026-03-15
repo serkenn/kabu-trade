@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kabu
+      POSTGRES_PASSWORD: kabu_password
+      POSTGRES_DB: kabu_trade
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kabu -d kabu_trade"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://kabu:kabu_password@db:5432/kabu_trade?schema=public"
+      JWT_SECRET: "${JWT_SECRET:-change-this-in-production}"
+      JQUANTS_API_KEY: "${JQUANTS_API_KEY:-}"
+      FINNHUB_API_KEY: "${FINNHUB_API_KEY:-}"
+      EVEX_ACCOUNTS_URL: "${EVEX_ACCOUNTS_URL:-}"
+      EVEX_ACCOUNTS_API_KEY: "${EVEX_ACCOUNTS_API_KEY:-}"
+      PORT: "4000"
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: "http://backend:4000"
+    ports:
+      - "3000:3000"
+
+  admin:
+    build:
+      context: .
+      dockerfile: packages/admin/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: "http://backend:4000"
+    ports:
+      - "3001:3001"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - admin
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN}"
+
+volumes:
+  pgdata:
