@@ -38,31 +38,31 @@ export default function StockSearch({ market, onSelect }: Props) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
-    // Debounce
     const timer = setTimeout(() => search(value), 300);
     return () => clearTimeout(timer);
   };
 
   return (
     <div className="relative">
-      <input
-        type="text"
-        value={query}
-        onChange={handleChange}
-        className="input"
-        placeholder={
-          market === "JP"
-            ? "銘柄コードまたは企業名で検索..."
-            : "Search by ticker or company name..."
-        }
-      />
-      {loading && (
-        <div className="absolute right-3 top-2.5">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-brand-500" />
-        </div>
-      )}
+      <div className="relative">
+        <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={handleChange}
+          className="w-full bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-500 pl-7 pr-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          placeholder={market === "JP" ? "銘柄コード / 企業名" : "Ticker / Company"}
+        />
+        {loading && (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            <div className="animate-spin rounded-full h-3 w-3 border-b border-brand-500" />
+          </div>
+        )}
+      </div>
       {results.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+        <div className="absolute z-50 w-80 mt-1 bg-gray-800 border border-gray-700 rounded shadow-xl max-h-60 overflow-y-auto">
           {results.map((r) => (
             <button
               key={r.symbol}
@@ -71,14 +71,10 @@ export default function StockSearch({ market, onSelect }: Props) {
                 setQuery(r.symbol);
                 setResults([]);
               }}
-              className="w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors flex justify-between items-center"
+              className="w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors flex justify-between items-center text-xs"
             >
-              <span className="font-mono font-bold text-brand-400">
-                {r.symbol}
-              </span>
-              <span className="text-sm text-gray-400 truncate ml-3">
-                {r.name}
-              </span>
+              <span className="font-mono font-bold text-brand-400">{r.symbol}</span>
+              <span className="text-gray-400 truncate ml-3">{r.name}</span>
             </button>
           ))}
         </div>

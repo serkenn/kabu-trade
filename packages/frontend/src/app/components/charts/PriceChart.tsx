@@ -10,6 +10,7 @@ interface Props {
 
 export default function PriceChart({ symbol, market }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(90);
@@ -27,28 +28,39 @@ export default function PriceChart({ symbol, market }: Props) {
   }, [symbol, market, days]);
 
   useEffect(() => {
-    if (!containerRef.current || candles.length === 0) return;
+    if (!containerRef.current || !wrapperRef.current || candles.length === 0) return;
 
-    let chart: ReturnType<typeof import("lightweight-charts").createChart>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let chart: any;
+    let resizeObserver: ResizeObserver;
 
     import("lightweight-charts").then(({ createChart }) => {
-      if (!containerRef.current) return;
+      if (!containerRef.current || !wrapperRef.current) return;
       containerRef.current.innerHTML = "";
 
+      const rect = wrapperRef.current.getBoundingClientRect();
+
       chart = createChart(containerRef.current, {
-        width: containerRef.current.clientWidth,
-        height: 400,
+        width: rect.width,
+        height: rect.height,
         layout: {
-          background: { color: "#111827" },
-          textColor: "#9CA3AF",
+          background: { color: "#0a0e17" },
+          textColor: "#6B7280",
+          fontSize: 11,
         },
         grid: {
-          vertLines: { color: "#1F2937" },
-          horzLines: { color: "#1F2937" },
+          vertLines: { color: "#1a1f2e" },
+          horzLines: { color: "#1a1f2e" },
         },
         crosshair: { mode: 0 },
-        rightPriceScale: { borderColor: "#374151" },
-        timeScale: { borderColor: "#374151" },
+        rightPriceScale: {
+          borderColor: "#1F2937",
+          scaleMargins: { top: 0.05, bottom: 0.2 },
+        },
+        timeScale: {
+          borderColor: "#1F2937",
+          timeVisible: false,
+        },
       });
 
       const candleSeries = chart.addCandlestickSeries({
@@ -71,74 +83,82 @@ export default function PriceChart({ symbol, market }: Props) {
       );
 
       const volumeSeries = chart.addHistogramSeries({
-        color: "#3B82F6",
+        color: "#3B82F680",
         priceFormat: { type: "volume" },
         priceScaleId: "",
       });
 
       volumeSeries.priceScale().applyOptions({
-        scaleMargins: { top: 0.8, bottom: 0 },
+        scaleMargins: { top: 0.85, bottom: 0 },
       });
 
       volumeSeries.setData(
         candles.map((c) => ({
           time: c.time as never,
           value: c.volume,
-          color: c.close >= c.open ? "#EF444480" : "#22C55E80",
+          color: c.close >= c.open
+            ? (market === "JP" ? "#EF444460" : "#22C55E60")
+            : (market === "JP" ? "#22C55E60" : "#EF444460"),
         }))
       );
 
       chart.timeScale().fitContent();
 
-      const resizeObserver = new ResizeObserver(() => {
-        if (containerRef.current) {
-          chart.applyOptions({ width: containerRef.current.clientWidth });
+      resizeObserver = new ResizeObserver(() => {
+        if (wrapperRef.current) {
+          const r = wrapperRef.current.getBoundingClientRect();
+          chart.applyOptions({ width: r.width, height: r.height });
         }
       });
-      resizeObserver.observe(containerRef.current);
-
-      return () => {
-        resizeObserver.disconnect();
-        chart.remove();
-      };
+      resizeObserver.observe(wrapperRef.current);
     });
 
     return () => {
+      if (resizeObserver) resizeObserver.disconnect();
       if (chart) chart.remove();
     };
   }, [candles, market]);
 
+  const periods = [
+    { label: "1M", value: 30 },
+    { label: "3M", value: 90 },
+    { label: "6M", value: 180 },
+    { label: "1Y", value: 365 },
+  ];
+
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold">チャート</h3>
-        <div className="flex gap-1">
-          {[30, 90, 180, 365].map((d) => (
-            <button
-              key={d}
-              onClick={() => setDays(d)}
-              className={`px-3 py-1 rounded text-xs transition-colors ${
-                days === d
-                  ? "bg-brand-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              }`}
-            >
-              {d}日
-            </button>
-          ))}
-        </div>
+    <div className="h-full flex flex-col bg-[#0a0e17] relative">
+      {/* Period buttons overlay */}
+      <div className="absolute top-2 left-3 z-10 flex gap-1">
+        {periods.map((p) => (
+          <button
+            key={p.value}
+            onClick={() => setDays(p.value)}
+            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+              days === p.value
+                ? "bg-brand-600 text-white"
+                : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-gray-200"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
-      {loading ? (
-        <div className="h-[400px] flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-        </div>
-      ) : candles.length === 0 ? (
-        <div className="h-[400px] flex items-center justify-center text-gray-500">
-          データがありません
-        </div>
-      ) : (
-        <div ref={containerRef} />
-      )}
+
+      {/* Chart */}
+      <div ref={wrapperRef} className="flex-1 min-h-0">
+        {loading ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500" />
+          </div>
+        ) : candles.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-gray-600 text-sm">
+            データがありません
+          </div>
+        ) : (
+          <div ref={containerRef} className="h-full" />
+        )}
+      </div>
     </div>
   );
 }

@@ -25,14 +25,14 @@ export default function PortfolioPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
+      <div className="flex justify-center py-20 p-6">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold">ポートフォリオ</h1>
 
       {/* 資産サマリー */}

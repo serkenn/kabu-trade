@@ -57,7 +57,7 @@ export default function MarginPage() {
   const displayPositions = tab === "open" ? positions : closedPositions;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold">信用取引</h1>
 
       <div className="flex gap-2">
