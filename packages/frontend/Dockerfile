@@ -24,6 +24,10 @@ RUN mkdir -p packages/frontend/public
 RUN npx tsc -p packages/shared/tsconfig.json
 ENV BACKEND_URL=http://backend:4000
 RUN cd packages/frontend && npx next build
+# Debug: show standalone output structure
+RUN echo "=== standalone root ===" && ls packages/frontend/.next/standalone/ && \
+    echo "=== standalone/packages ===" && ls packages/frontend/.next/standalone/packages/ 2>/dev/null || true && \
+    echo "=== looking for server.js ===" && find packages/frontend/.next/standalone -name "server.js" -type f 2>/dev/null || true
 
 # Production
 FROM base AS runner
@@ -31,14 +35,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# standalone output (without outputFileTracingRoot)
-COPY --from=builder /app/packages/frontend/public ./public
+# Copy standalone output (outputFileTracingRoot preserves monorepo structure)
 COPY --from=builder /app/packages/frontend/.next/standalone ./
-COPY --from=builder /app/packages/frontend/.next/static ./.next/static
+COPY --from=builder /app/packages/frontend/public ./packages/frontend/public
+COPY --from=builder /app/packages/frontend/.next/static ./packages/frontend/.next/static
 
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["node", "packages/frontend/server.js"]
