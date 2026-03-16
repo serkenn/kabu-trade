@@ -72,10 +72,17 @@ export interface JQuantsListedInfo {
 
 export async function getListedInfo(code?: string) {
   const path = code
-    ? `/equities/list?code=${toCode5(code)}`
-    : "/equities/list";
+    ? `/equities/master?code=${toCode5(code)}`
+    : "/equities/master";
   const data = await jquantsFetch(path);
-  return (data.list || data.info || []) as JQuantsListedInfo[];
+  // レスポンスのキーを特定するためログ出力
+  const keys = Object.keys(data);
+  console.log(`[J-Quants] master response keys: ${keys.join(", ")}`);
+  // 最初の配列フィールドを返す
+  for (const key of keys) {
+    if (Array.isArray(data[key])) return data[key] as JQuantsListedInfo[];
+  }
+  return [] as JQuantsListedInfo[];
 }
 
 export async function getDailyQuotes(code: string, from?: string, to?: string) {
@@ -83,7 +90,12 @@ export async function getDailyQuotes(code: string, from?: string, to?: string) {
   if (from) path += `&from=${from}`;
   if (to) path += `&to=${to}`;
   const data = await jquantsFetch(path);
-  return (data.bars || data.daily_quotes || []) as JQuantsQuote[];
+  const keys = Object.keys(data);
+  console.log(`[J-Quants] bars/daily response keys: ${keys.join(", ")}`);
+  for (const key of keys) {
+    if (Array.isArray(data[key])) return data[key] as JQuantsQuote[];
+  }
+  return [] as JQuantsQuote[];
 }
 
 export async function getTradingCalendar(from?: string, to?: string) {
