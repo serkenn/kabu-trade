@@ -24,7 +24,7 @@ const COOKIE_OPTIONS = {
 };
 
 // OAuth state/PKCE 一時保存用メモリストア (Cookie はプロキシ経由で失われるため)
-const oauthPendingFlows = new Map<string, { codeVerifier: string; redirectUrl: string; createdAt: number }>();
+const oauthPendingFlows = new Map<string, { codeVerifier: string; callbackUri: string; redirectUrl: string; createdAt: number }>();
 
 // ワンタイム認証コード (OAuth後にcookieを正しいドメインで設定するため)
 const authCodes = new Map<string, { token: string; createdAt: number }>();
@@ -168,10 +168,13 @@ authRouter.get("/evex", (req: AuthRequest, res: Response) => {
   const path = typeof req.query.redirect === "string" ? req.query.redirect : "/trade";
   const redirectUrl = `${baseUrl}${path}`;
 
-  // PKCE code_verifier と state をメモリに保存 (Cookie はプロキシ経由で失われる)
-  oauthPendingFlows.set(state, { codeVerifier, redirectUrl, createdAt: Date.now() });
+  // コールバックURIはリクエスト元のドメインを使用 (admin/frontendそれぞれ)
+  const callbackUri = `${baseUrl}/api/auth/evex/callback`;
 
-  const authUrl = getAuthorizationUrl(state, codeChallenge);
+  // PKCE code_verifier と state をメモリに保存
+  oauthPendingFlows.set(state, { codeVerifier, callbackUri, redirectUrl, createdAt: Date.now() });
+
+  const authUrl = getAuthorizationUrl(state, codeChallenge, callbackUri);
   res.redirect(authUrl);
 });
 
@@ -211,8 +214,8 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
 
     const codeVerifier = pending.codeVerifier;
 
-    // トークン交換
-    const tokens = await exchangeCodeForTokens(code as string, codeVerifier);
+    // トークン交換 (認可時と同じ redirect_uri を使う)
+    const tokens = await exchangeCodeForTokens(code as string, codeVerifier, pending.callbackUri);
 
     // UserInfo 取得
     const evexUser = await fetchUserInfo(tokens.accessToken);
@@ -269,13 +272,9 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
 
     await audit(user.id, "LOGIN", null, "evex-oauth", ip, ua);
 
-    // ワンタイムコードを発行し、リクエスト元にリダイレクト
-    // (cookie はリクエスト元ドメインの /api/auth/claim 経由で設定する)
-    const authCode = generateState(); // ランダム文字列を流用
-    authCodes.set(authCode, { token, createdAt: Date.now() });
-    const redirectUrl = pending.redirectUrl;
-    const separator = redirectUrl.includes("?") ? "&" : "?";
-    res.redirect(`${redirectUrl}${separator}auth_code=${authCode}`);
+    // cookie 設定してリダイレクト (コールバックは同ドメイン経由)
+    res.cookie("token", token, COOKIE_OPTIONS);
+    res.redirect(pending.redirectUrl);
   } catch (error) {
     console.error("OAuth callback error:", error);
     await audit(null, "LOGIN_ERROR", null, `OAuth: ${String(error)}`, ip, ua, "CRITICAL");

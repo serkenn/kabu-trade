@@ -24,7 +24,7 @@ export interface EvexUser {
 }
 
 export function isEvexConfigured(): boolean {
-  return !!(EVEX_URL && CLIENT_ID && CLIENT_SECRET && REDIRECT_URI);
+  return !!(EVEX_URL && CLIENT_ID && CLIENT_SECRET);
 }
 
 // ==================== PKCE ====================
@@ -48,11 +48,11 @@ export function generateState(): string {
 /**
  * 認可URLを生成
  */
-export function getAuthorizationUrl(state: string, codeChallenge: string): string {
+export function getAuthorizationUrl(state: string, codeChallenge: string, redirectUri: string): string {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: CLIENT_ID!,
-    redirect_uri: REDIRECT_URI!,
+    redirect_uri: redirectUri,
     scope: SCOPES,
     state,
     code_challenge: codeChallenge,
@@ -66,12 +66,13 @@ export function getAuthorizationUrl(state: string, codeChallenge: string): strin
  */
 export async function exchangeCodeForTokens(
   code: string,
-  codeVerifier: string
+  codeVerifier: string,
+  redirectUri: string
 ): Promise<{ accessToken: string; refreshToken?: string }> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,
-    redirect_uri: REDIRECT_URI!,
+    redirect_uri: redirectUri,
     client_id: CLIENT_ID!,
     client_secret: CLIENT_SECRET!,
     code_verifier: codeVerifier,
