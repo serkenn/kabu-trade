@@ -51,7 +51,7 @@ function AdminLoginForm() {
   };
 
   const handleEvexLogin = () => {
-    window.location.href = "/api/auth/evex?redirect=/users";
+    window.location.href = `/api/auth/evex?redirect=/users&origin=${encodeURIComponent(window.location.origin)}`;
   };
 
   return (

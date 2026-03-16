@@ -23,7 +23,7 @@ const COOKIE_OPTIONS = {
 };
 
 // OAuth state/PKCE 一時保存用メモリストア (Cookie はプロキシ経由で失われるため)
-const oauthPendingFlows = new Map<string, { codeVerifier: string; redirectAfter: string; createdAt: number }>();
+const oauthPendingFlows = new Map<string, { codeVerifier: string; redirectUrl: string; createdAt: number }>();
 
 // 5分以上経過したエントリを定期的にクリーンアップ
 setInterval(() => {
@@ -156,11 +156,13 @@ authRouter.get("/evex", (req: AuthRequest, res: Response) => {
   const { codeVerifier, codeChallenge } = generatePKCE();
   const state = generateState();
 
-  // フロントエンドの遷移先 (コールバック後にリダイレクトする先)
-  const redirectAfter = typeof req.query.redirect === "string" ? req.query.redirect : "/trade";
+  // リクエスト元のOriginをクエリパラメータから取得
+  const baseUrl = (typeof req.query.origin === "string" ? req.query.origin : getFrontendUrl()).replace(/\/$/, "");
+  const path = typeof req.query.redirect === "string" ? req.query.redirect : "/trade";
+  const redirectUrl = `${baseUrl}${path}`;
 
   // PKCE code_verifier と state をメモリに保存 (Cookie はプロキシ経由で失われる)
-  oauthPendingFlows.set(state, { codeVerifier, redirectAfter, createdAt: Date.now() });
+  oauthPendingFlows.set(state, { codeVerifier, redirectUrl, createdAt: Date.now() });
 
   const authUrl = getAuthorizationUrl(state, codeChallenge);
   res.redirect(authUrl);
@@ -263,9 +265,8 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
     // セッション Cookie を設定
     res.cookie("token", token, COOKIE_OPTIONS);
 
-    // フロントエンドにリダイレクト
-    const redirectAfter = pending.redirectAfter || "/trade";
-    res.redirect(`${getFrontendUrl()}${redirectAfter}`);
+    // リクエスト元にリダイレクト
+    res.redirect(pending.redirectUrl);
   } catch (error) {
     console.error("OAuth callback error:", error);
     await audit(null, "LOGIN_ERROR", null, `OAuth: ${String(error)}`, ip, ua, "CRITICAL");

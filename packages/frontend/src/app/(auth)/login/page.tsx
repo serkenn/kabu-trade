@@ -57,7 +57,7 @@ function LoginForm() {
   };
 
   const handleEvexLogin = () => {
-    window.location.href = "/api/auth/evex?redirect=/trade";
+    window.location.href = `/api/auth/evex?redirect=/trade&origin=${encodeURIComponent(window.location.origin)}`;
   };
 
   return (
