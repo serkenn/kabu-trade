@@ -22,14 +22,16 @@ const COOKIE_OPTIONS = {
   path: "/",
 };
 
-// OAuth state/PKCE 一時保存用 Cookie のオプション (5分間有効)
-const OAUTH_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const, // OAuth リダイレクトを受けるため lax
-  maxAge: 5 * 60 * 1000,
-  path: "/",
-};
+// OAuth state/PKCE 一時保存用メモリストア (Cookie はプロキシ経由で失われるため)
+const oauthPendingFlows = new Map<string, { codeVerifier: string; redirectAfter: string; createdAt: number }>();
+
+// 5分以上経過したエントリを定期的にクリーンアップ
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of oauthPendingFlows) {
+    if (now - val.createdAt > 5 * 60 * 1000) oauthPendingFlows.delete(key);
+  }
+}, 60 * 1000);
 
 // ==================== ローカル認証 ====================
 
@@ -157,10 +159,8 @@ authRouter.get("/evex", (req: AuthRequest, res: Response) => {
   // フロントエンドの遷移先 (コールバック後にリダイレクトする先)
   const redirectAfter = typeof req.query.redirect === "string" ? req.query.redirect : "/trade";
 
-  // PKCE code_verifier と state を HttpOnly Cookie に保存
-  res.cookie("evex_cv", codeVerifier, OAUTH_COOKIE_OPTIONS);
-  res.cookie("evex_state", state, OAUTH_COOKIE_OPTIONS);
-  res.cookie("evex_redirect", redirectAfter, OAUTH_COOKIE_OPTIONS);
+  // PKCE code_verifier と state をメモリに保存 (Cookie はプロキシ経由で失われる)
+  oauthPendingFlows.set(state, { codeVerifier, redirectAfter, createdAt: Date.now() });
 
   const authUrl = getAuthorizationUrl(state, codeChallenge);
   res.redirect(authUrl);
@@ -187,18 +187,20 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
       return res.redirect(`${getFrontendUrl()}/login?error=oauth_invalid`);
     }
 
-    // state 検証
-    const savedState = req.cookies?.evex_state;
-    if (!savedState || savedState !== state) {
-      await audit(null, "LOGIN_FAILED", null, "OAuth state mismatch", ip, ua, "WARNING");
+    // state 検証 (メモリストアから取得)
+    const pending = oauthPendingFlows.get(state as string);
+    if (!pending) {
+      await audit(null, "LOGIN_FAILED", null, "OAuth state mismatch or expired", ip, ua, "WARNING");
       return res.redirect(`${getFrontendUrl()}/login?error=oauth_state`);
     }
+    oauthPendingFlows.delete(state as string);
 
-    // code_verifier 取得
-    const codeVerifier = req.cookies?.evex_cv;
-    if (!codeVerifier) {
+    // 5分以上経過していたら期限切れ
+    if (Date.now() - pending.createdAt > 5 * 60 * 1000) {
       return res.redirect(`${getFrontendUrl()}/login?error=oauth_expired`);
     }
+
+    const codeVerifier = pending.codeVerifier;
 
     // トークン交換
     const tokens = await exchangeCodeForTokens(code as string, codeVerifier);
@@ -258,16 +260,11 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
 
     await audit(user.id, "LOGIN", null, "evex-oauth", ip, ua);
 
-    // OAuth 一時Cookie をクリア
-    res.clearCookie("evex_cv", { path: "/" });
-    res.clearCookie("evex_state", { path: "/" });
-    res.clearCookie("evex_redirect", { path: "/" });
-
     // セッション Cookie を設定
     res.cookie("token", token, COOKIE_OPTIONS);
 
     // フロントエンドにリダイレクト
-    const redirectAfter = req.cookies?.evex_redirect || "/trade";
+    const redirectAfter = pending.redirectAfter || "/trade";
     res.redirect(`${getFrontendUrl()}${redirectAfter}`);
   } catch (error) {
     console.error("OAuth callback error:", error);
