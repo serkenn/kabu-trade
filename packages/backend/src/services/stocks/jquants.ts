@@ -1,13 +1,39 @@
 /**
  * J-Quants API クライアント (日本株)
+ * 認証: リフレッシュトークン → IDトークン → Bearer
  */
 
 const BASE_URL = "https://api.jpx-jquants.com/v2";
 
-function getApiKey(): string {
+function getRefreshToken(): string {
   const key = process.env.JQUANTS_API_KEY;
   if (!key) throw new Error("JQUANTS_API_KEY is not set");
   return key;
+}
+
+// IDトークンのキャッシュ (有効期限24時間だが余裕を持って23時間)
+let idToken: string | null = null;
+let idTokenExpires = 0;
+
+async function getIdToken(): Promise<string> {
+  if (idToken && idTokenExpires > Date.now()) {
+    return idToken;
+  }
+
+  const res = await fetch(
+    `${BASE_URL}/token/auth_refresh?refreshtoken=${getRefreshToken()}`,
+    { method: "POST" }
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`J-Quants auth failed: ${res.status} ${text}`);
+  }
+
+  const data = await res.json() as { idToken: string };
+  idToken = data.idToken;
+  idTokenExpires = Date.now() + 23 * 60 * 60 * 1000; // 23時間
+  return idToken;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,11 +48,25 @@ async function jquantsFetch(path: string): Promise<any> {
     return cached.data;
   }
 
+  const token = await getIdToken();
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "x-api-key": getApiKey() },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
+    // トークン期限切れの場合はリトライ
+    if (res.status === 401) {
+      idToken = null;
+      idTokenExpires = 0;
+      const newToken = await getIdToken();
+      const retry = await fetch(`${BASE_URL}${path}`, {
+        headers: { Authorization: `Bearer ${newToken}` },
+      });
+      if (!retry.ok) throw new Error(`J-Quants API error: ${retry.status}`);
+      const data = await retry.json();
+      cache.set(cacheKey, { data, expires: Date.now() + CACHE_TTL });
+      return data;
+    }
     throw new Error(`J-Quants API error: ${res.status}`);
   }
 
