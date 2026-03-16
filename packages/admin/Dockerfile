@@ -31,14 +31,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# standalone output preserves monorepo structure
-COPY --from=builder /app/packages/admin/public ./packages/admin/public
+# standalone output (without outputFileTracingRoot)
+COPY --from=builder /app/packages/admin/public ./public
 COPY --from=builder /app/packages/admin/.next/standalone ./
-COPY --from=builder /app/packages/admin/.next/static ./packages/admin/.next/static
+COPY --from=builder /app/packages/admin/.next/static ./.next/static
 
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "packages/admin/server.js"]
+CMD ["node", "server.js"]
