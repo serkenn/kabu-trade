@@ -75,14 +75,13 @@ export async function getListedInfo(code?: string) {
     ? `/equities/master?code=${toCode5(code)}`
     : "/equities/master";
   const data = await jquantsFetch(path);
-  // レスポンスのキーを特定するためログ出力
-  const keys = Object.keys(data);
-  console.log(`[J-Quants] master response keys: ${keys.join(", ")}`);
-  // 最初の配列フィールドを返す
-  for (const key of keys) {
-    if (Array.isArray(data[key])) return data[key] as JQuantsListedInfo[];
+  const items = data.data || data.list || data.info || [];
+  if (items.length > 0) {
+    console.log(`[J-Quants] master sample item keys: ${Object.keys(items[0]).join(", ")}`);
+    console.log(`[J-Quants] master sample: ${JSON.stringify(items[0])}`);
+    console.log(`[J-Quants] master total items: ${items.length}`);
   }
-  return [] as JQuantsListedInfo[];
+  return items as JQuantsListedInfo[];
 }
 
 export async function getDailyQuotes(code: string, from?: string, to?: string) {
