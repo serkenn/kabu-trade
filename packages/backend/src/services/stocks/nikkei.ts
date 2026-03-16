@@ -83,8 +83,10 @@ export async function getCandles(code: string, days: number = 90): Promise<Nikke
   }
 
   const dataList = json.RESULT.data_lists[0];
-  const ohlcData: number[][] = dataList.data?.ohlc || [];
-  const volumeData: number[][] = dataList.data?.volume || [];
+  // data は配列: [{volume: [[ts,vol],...], ohlc: [[ts,o,h,l,c],...]}]
+  const chartData = Array.isArray(dataList.data) ? dataList.data[0] : dataList.data;
+  const ohlcData: number[][] = chartData?.ohlc || [];
+  const volumeData: number[][] = chartData?.volume || [];
 
   // Volume をマップ化 (timestamp → volume)
   const volumeMap = new Map<number, number>();
