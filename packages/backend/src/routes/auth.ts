@@ -26,11 +26,17 @@ const COOKIE_OPTIONS = {
 // OAuth state/PKCE 一時保存用メモリストア (Cookie はプロキシ経由で失われるため)
 const oauthPendingFlows = new Map<string, { codeVerifier: string; redirectUrl: string; createdAt: number }>();
 
+// ワンタイム認証コード (OAuth後にcookieを正しいドメインで設定するため)
+const authCodes = new Map<string, { token: string; createdAt: number }>();
+
 // 5分以上経過したエントリを定期的にクリーンアップ
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of oauthPendingFlows) {
     if (now - val.createdAt > 5 * 60 * 1000) oauthPendingFlows.delete(key);
+  }
+  for (const [key, val] of authCodes) {
+    if (now - val.createdAt > 60 * 1000) authCodes.delete(key);
   }
 }, 60 * 1000);
 
@@ -263,16 +269,39 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
 
     await audit(user.id, "LOGIN", null, "evex-oauth", ip, ua);
 
-    // セッション Cookie を設定
-    res.cookie("token", token, COOKIE_OPTIONS);
-
-    // リクエスト元にリダイレクト
-    res.redirect(pending.redirectUrl);
+    // ワンタイムコードを発行し、リクエスト元にリダイレクト
+    // (cookie はリクエスト元ドメインの /api/auth/claim 経由で設定する)
+    const code = generateState(); // ランダム文字列を流用
+    authCodes.set(code, { token, createdAt: Date.now() });
+    const redirectUrl = pending.redirectUrl;
+    const separator = redirectUrl.includes("?") ? "&" : "?";
+    res.redirect(`${redirectUrl}${separator}auth_code=${code}`);
   } catch (error) {
     console.error("OAuth callback error:", error);
     await audit(null, "LOGIN_ERROR", null, `OAuth: ${String(error)}`, ip, ua, "CRITICAL");
     res.redirect(`${getFrontendUrl()}/login?error=oauth_failed`);
   }
+});
+
+/**
+ * ワンタイムコードを受け取り、セッション Cookie を設定する
+ * GET /api/auth/claim?code=...
+ * → Cookie 設定して JSON 返却
+ */
+authRouter.get("/claim", (req: AuthRequest, res: Response) => {
+  const code = req.query.code as string;
+  if (!code) return res.status(400).json({ error: "code required" });
+
+  const entry = authCodes.get(code);
+  if (!entry) return res.status(400).json({ error: "invalid or expired code" });
+
+  authCodes.delete(code); // ワンタイム
+  if (Date.now() - entry.createdAt > 60 * 1000) {
+    return res.status(400).json({ error: "code expired" });
+  }
+
+  res.cookie("token", entry.token, COOKIE_OPTIONS);
+  res.json({ ok: true });
 });
 
 /**

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import AuthCodeHandler from "./components/AuthCodeHandler";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen">
+        <Suspense><AuthCodeHandler /></Suspense>
+        {children}
+      </body>
     </html>
   );
 }
