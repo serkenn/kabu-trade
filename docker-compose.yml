@@ -34,6 +34,7 @@ services:
       EVEX_CLIENT_SECRET: "${EVEX_CLIENT_SECRET:-}"
       EVEX_REDIRECT_URI: "${EVEX_REDIRECT_URI:-}"
       NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+      COOKIE_DOMAIN: "${COOKIE_DOMAIN:-}"
       PORT: "4000"
     ports:
       - "4000:4000"

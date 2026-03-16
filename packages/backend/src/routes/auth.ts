@@ -17,9 +17,10 @@ export const authRouter = Router();
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
+  sameSite: "lax" as const, // サブドメイン間リダイレクトに対応
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/",
+  ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
 };
 
 // OAuth state/PKCE 一時保存用メモリストア (Cookie はプロキシ経由で失われるため)
