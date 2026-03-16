@@ -271,11 +271,11 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
 
     // ワンタイムコードを発行し、リクエスト元にリダイレクト
     // (cookie はリクエスト元ドメインの /api/auth/claim 経由で設定する)
-    const code = generateState(); // ランダム文字列を流用
-    authCodes.set(code, { token, createdAt: Date.now() });
+    const authCode = generateState(); // ランダム文字列を流用
+    authCodes.set(authCode, { token, createdAt: Date.now() });
     const redirectUrl = pending.redirectUrl;
     const separator = redirectUrl.includes("?") ? "&" : "?";
-    res.redirect(`${redirectUrl}${separator}auth_code=${code}`);
+    res.redirect(`${redirectUrl}${separator}auth_code=${authCode}`);
   } catch (error) {
     console.error("OAuth callback error:", error);
     await audit(null, "LOGIN_ERROR", null, `OAuth: ${String(error)}`, ip, ua, "CRITICAL");
