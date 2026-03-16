@@ -58,13 +58,40 @@ export async function getQuote(symbol: string, market: Market): Promise<StockQuo
   }
 }
 
+/**
+ * interval: "1m","5m","10m","15m","30m","1h","2h","3h","4h" → イントラデイ
+ *           undefined → 日足
+ */
+function parseIntervalMin(interval?: string): number | null {
+  if (!interval) return null;
+  const m = interval.match(/^(\d+)(m|h)$/);
+  if (!m) return null;
+  const val = parseInt(m[1]);
+  return m[2] === "h" ? val * 60 : val;
+}
+
 export async function getCandles(
   symbol: string,
   market: Market,
-  days: number = 90
+  days: number = 90,
+  interval?: string
 ): Promise<CandleData[]> {
+  const intervalMin = parseIntervalMin(interval);
+
+  // イントラデイ (JP株のみ、日経1分足から生成)
+  if (intervalMin !== null && market === "JP") {
+    const candles = await nikkei.getIntradayCandles(symbol, intervalMin);
+    return candles.map((c) => ({
+      time: c.time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume,
+    }));
+  }
+
   if (market === "US") {
-    // US株: Stooq
     const candles = await stooq.getCandles(symbol, "US", days);
     return candles.map((c) => ({
       time: c.date,
@@ -76,19 +103,10 @@ export async function getCandles(
     }));
   }
 
-  // JP株: 日経 → Stooq フォールバック
+  // JP株日足: 日経 → Stooq フォールバック
   try {
     const candles = await nikkei.getCandles(symbol, days);
-    if (candles.length > 0) {
-      return candles.map((c) => ({
-        time: c.date,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        volume: c.volume,
-      }));
-    }
+    if (candles.length > 0) return candles;
   } catch (e) {
     console.warn(`[candles] Nikkei failed for ${symbol}, trying Stooq:`, e);
   }

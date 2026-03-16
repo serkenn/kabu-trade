@@ -35,6 +35,7 @@ export default function PriceChart({ symbol, market }: Props) {
   const [loading, setLoading] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);
   const [days, setDays] = useState(90);
+  const [interval, setInterval] = useState<string | null>(null); // null = daily, "1m","5m",etc = intraday
   const [orders, setOrders] = useState<OrderMarker[]>([]);
   const [drawingTool, setDrawingTool] = useState<DrawingTool>("none");
   const [drawings, setDrawings] = useState<DrawLine[]>([]);
@@ -46,7 +47,9 @@ export default function PriceChart({ symbol, market }: Props) {
     if (!symbol) return;
     setLoading(true);
     setChartError(null);
-    fetch(`/api/stocks/candles?symbol=${symbol}&market=${market}&days=${days}`)
+    const params = new URLSearchParams({ symbol, market, days: String(days) });
+    if (interval) params.set("interval", interval);
+    fetch(`/api/stocks/candles?${params}`)
       .then(async (r) => {
         if (!r.ok) {
           const err = await r.json().catch(() => ({}));
@@ -70,7 +73,7 @@ export default function PriceChart({ symbol, market }: Props) {
         setChartError(e.message || "チャートデータの取得に失敗しました");
       })
       .finally(() => setLoading(false));
-  }, [symbol, market, days]);
+  }, [symbol, market, days, interval]);
 
   // Fetch orders for markers
   useEffect(() => {
@@ -127,7 +130,8 @@ export default function PriceChart({ symbol, market }: Props) {
         },
         timeScale: {
           borderColor: "#1F2937",
-          timeVisible: false,
+          timeVisible: !!interval,
+          secondsVisible: false,
         },
         handleScroll: { mouseWheel: true, pressedMouseMove: true },
         handleScale: { mouseWheel: true, pinch: true },
@@ -206,7 +210,7 @@ export default function PriceChart({ symbol, market }: Props) {
       chartRef.current = null;
       candleSeriesRef.current = null;
     };
-  }, [candles, market, orders]);
+  }, [candles, market, orders, interval]);
 
   // Draw overlay canvas
   const syncCanvas = useCallback(() => {
@@ -299,7 +303,18 @@ export default function PriceChart({ symbol, market }: Props) {
     setDrawingTool("none");
   };
 
-  const periods = [
+  const intradayPeriods = market === "JP" ? [
+    { label: "1分", iv: "1m" },
+    { label: "5分", iv: "5m" },
+    { label: "10分", iv: "10m" },
+    { label: "15分", iv: "15m" },
+    { label: "30分", iv: "30m" },
+    { label: "1時間", iv: "1h" },
+    { label: "2時間", iv: "2h" },
+    { label: "4時間", iv: "4h" },
+  ] : [];
+
+  const dailyPeriods = [
     { label: "1M", value: 30 },
     { label: "3M", value: 90 },
     { label: "6M", value: 180 },
@@ -315,13 +330,30 @@ export default function PriceChart({ symbol, market }: Props) {
     <div className="h-full flex flex-col bg-[#0a0e17] relative">
       {/* Toolbar overlay */}
       <div className="absolute top-2 left-3 z-10 flex gap-1 items-center">
-        {/* Period buttons */}
-        {periods.map((p) => (
+        {/* Intraday buttons (JP only) */}
+        {intradayPeriods.map((p) => (
+          <button
+            key={p.iv}
+            onClick={() => { setInterval(p.iv); }}
+            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+              interval === p.iv
+                ? "bg-brand-600 text-white"
+                : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-gray-200"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+
+        {intradayPeriods.length > 0 && <div className="w-px h-4 bg-gray-700 mx-1" />}
+
+        {/* Daily period buttons */}
+        {dailyPeriods.map((p) => (
           <button
             key={p.value}
-            onClick={() => setDays(p.value)}
+            onClick={() => { setInterval(null); setDays(p.value); }}
             className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
-              days === p.value
+              interval === null && days === p.value
                 ? "bg-brand-600 text-white"
                 : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-gray-200"
             }`}

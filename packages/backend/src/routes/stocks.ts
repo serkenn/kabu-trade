@@ -39,11 +39,12 @@ stocksRouter.get("/candles", async (req: AuthRequest, res) => {
     const symbol = req.query.symbol as string;
     const market = (req.query.market as Market) || "JP";
     const days = parseInt((req.query.days as string) || "90");
+    const interval = req.query.interval as string | undefined; // "1m","5m","15m","30m","1h","2h","3h","4h"
     if (!symbol) return res.status(400).json({ error: "symbol is required" });
 
-    const candles = await getCandles(symbol, market, days);
+    const candles = await getCandles(symbol, market, days, interval);
     if (candles.length === 0) {
-      console.warn(`[candles] No data for ${symbol} (${market}, ${days}d)`);
+      console.warn(`[candles] No data for ${symbol} (${market}, ${days}d, ${interval || "daily"})`);
     }
     res.json(candles);
   } catch (error: unknown) {
