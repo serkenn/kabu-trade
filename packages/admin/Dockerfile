@@ -20,14 +20,9 @@ COPY package.json tsconfig.base.json ./
 COPY packages/shared ./packages/shared/
 COPY packages/admin ./packages/admin/
 RUN mkdir -p packages/admin/public
-# Build shared first so dist/index.js exists
 RUN npx tsc -p packages/shared/tsconfig.json
 ENV BACKEND_URL=http://backend:4000
 RUN cd packages/admin && npx next build
-# Debug: show standalone output structure
-RUN echo "=== standalone root ===" && ls packages/admin/.next/standalone/ && \
-    echo "=== standalone/packages ===" && ls packages/admin/.next/standalone/packages/ 2>/dev/null || true && \
-    echo "=== looking for server.js ===" && find packages/admin/.next/standalone -name "server.js" -type f 2>/dev/null || true
 
 # Production
 FROM base AS runner
@@ -35,14 +30,20 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# Copy standalone output (outputFileTracingRoot preserves monorepo structure)
-COPY --from=builder /app/packages/admin/.next/standalone ./
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist/
+
+# Copy Next.js build output
+COPY --from=builder /app/packages/admin/package.json ./packages/admin/
+COPY --from=builder /app/packages/admin/next.config.mjs ./packages/admin/
+COPY --from=builder /app/packages/admin/.next ./packages/admin/.next
 COPY --from=builder /app/packages/admin/public ./packages/admin/public
-COPY --from=builder /app/packages/admin/.next/static ./packages/admin/.next/static
 
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "packages/admin/server.js"]
+CMD ["node_modules/.bin/next", "start", "packages/admin", "-p", "3001"]

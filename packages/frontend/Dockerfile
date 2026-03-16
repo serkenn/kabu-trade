@@ -20,14 +20,9 @@ COPY package.json tsconfig.base.json ./
 COPY packages/shared ./packages/shared/
 COPY packages/frontend ./packages/frontend/
 RUN mkdir -p packages/frontend/public
-# Build shared first so dist/index.js exists
 RUN npx tsc -p packages/shared/tsconfig.json
 ENV BACKEND_URL=http://backend:4000
 RUN cd packages/frontend && npx next build
-# Debug: show standalone output structure
-RUN echo "=== standalone root ===" && ls packages/frontend/.next/standalone/ && \
-    echo "=== standalone/packages ===" && ls packages/frontend/.next/standalone/packages/ 2>/dev/null || true && \
-    echo "=== looking for server.js ===" && find packages/frontend/.next/standalone -name "server.js" -type f 2>/dev/null || true
 
 # Production
 FROM base AS runner
@@ -35,14 +30,20 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# Copy standalone output (outputFileTracingRoot preserves monorepo structure)
-COPY --from=builder /app/packages/frontend/.next/standalone ./
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist/
+
+# Copy Next.js build output
+COPY --from=builder /app/packages/frontend/package.json ./packages/frontend/
+COPY --from=builder /app/packages/frontend/next.config.mjs ./packages/frontend/
+COPY --from=builder /app/packages/frontend/.next ./packages/frontend/.next
 COPY --from=builder /app/packages/frontend/public ./packages/frontend/public
-COPY --from=builder /app/packages/frontend/.next/static ./packages/frontend/.next/static
 
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "packages/frontend/server.js"]
+CMD ["node_modules/.bin/next", "start", "packages/frontend", "-p", "3000"]
