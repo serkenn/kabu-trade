@@ -7,6 +7,7 @@ interface MarketStatus {
   isOpen: boolean;
   countdown: string;
   nextEvent: string;
+  timeStr: string;
 }
 
 function pad(n: number): string {
@@ -42,7 +43,8 @@ function getTzTime(tz: string, now: Date) {
   const s = parseInt(parts.second);
   const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   const dayOfWeek = dayMap[parts.weekday] ?? 0;
-  return { h, m, s, dayOfWeek };
+  const timeStr = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  return { h, m, s, dayOfWeek, timeStr };
 }
 
 function msUntil(targetH: number, targetM: number, tzH: number, tzM: number, tzS: number): number {
@@ -52,11 +54,11 @@ function msUntil(targetH: number, targetM: number, tzH: number, tzM: number, tzS
 }
 
 function getJPStatus(now: Date): MarketStatus {
-  const { h, m, s, dayOfWeek } = getTzTime("Asia/Tokyo", now);
+  const { h, m, s, dayOfWeek, timeStr } = getTzTime("Asia/Tokyo", now);
   const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
   if (!isWeekday) {
-    return { label: "JP", isOpen: false, countdown: "--:--:--", nextEvent: "休場" };
+    return { label: "JP", isOpen: false, countdown: "--:--:--", nextEvent: "休場", timeStr };
   }
 
   const cur = h * 3600 + m * 60 + s;
@@ -66,27 +68,27 @@ function getJPStatus(now: Date): MarketStatus {
   const gobaClose = 15 * 3600;
 
   if (cur < zenbaOpen) {
-    return { label: "JP", isOpen: false, countdown: formatCountdown(msUntil(9, 0, h, m, s)), nextEvent: "前場まで" };
+    return { label: "JP", isOpen: false, countdown: formatCountdown(msUntil(9, 0, h, m, s)), nextEvent: "前場まで", timeStr };
   }
   if (cur < zenbaClose) {
-    return { label: "JP前場", isOpen: true, countdown: formatCountdown(msUntil(11, 30, h, m, s)), nextEvent: "閉場まで" };
+    return { label: "JP前場", isOpen: true, countdown: formatCountdown(msUntil(11, 30, h, m, s)), nextEvent: "閉場まで", timeStr };
   }
   if (cur < gobaOpen) {
-    return { label: "JP", isOpen: false, countdown: formatCountdown(msUntil(12, 30, h, m, s)), nextEvent: "後場まで" };
+    return { label: "JP", isOpen: false, countdown: formatCountdown(msUntil(12, 30, h, m, s)), nextEvent: "後場まで", timeStr };
   }
   if (cur < gobaClose) {
-    return { label: "JP後場", isOpen: true, countdown: formatCountdown(msUntil(15, 0, h, m, s)), nextEvent: "閉場まで" };
+    return { label: "JP後場", isOpen: true, countdown: formatCountdown(msUntil(15, 0, h, m, s)), nextEvent: "閉場まで", timeStr };
   }
 
-  return { label: "JP", isOpen: false, countdown: "--:--:--", nextEvent: "閉場" };
+  return { label: "JP", isOpen: false, countdown: "--:--:--", nextEvent: "閉場", timeStr };
 }
 
 function getUSStatus(now: Date): MarketStatus {
-  const { h, m, s, dayOfWeek } = getTzTime("America/New_York", now);
+  const { h, m, s, dayOfWeek, timeStr } = getTzTime("America/New_York", now);
   const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
   if (!isWeekday) {
-    return { label: "US", isOpen: false, countdown: "--:--:--", nextEvent: "休場" };
+    return { label: "US", isOpen: false, countdown: "--:--:--", nextEvent: "休場", timeStr };
   }
 
   const cur = h * 3600 + m * 60 + s;
@@ -94,13 +96,13 @@ function getUSStatus(now: Date): MarketStatus {
   const marketClose = 16 * 3600;
 
   if (cur < marketOpen) {
-    return { label: "US", isOpen: false, countdown: formatCountdown(msUntil(9, 30, h, m, s)), nextEvent: "開場まで" };
+    return { label: "US", isOpen: false, countdown: formatCountdown(msUntil(9, 30, h, m, s)), nextEvent: "開場まで", timeStr };
   }
   if (cur < marketClose) {
-    return { label: "US", isOpen: true, countdown: formatCountdown(msUntil(16, 0, h, m, s)), nextEvent: "閉場まで" };
+    return { label: "US", isOpen: true, countdown: formatCountdown(msUntil(16, 0, h, m, s)), nextEvent: "閉場まで", timeStr };
   }
 
-  return { label: "US", isOpen: false, countdown: "--:--:--", nextEvent: "閉場" };
+  return { label: "US", isOpen: false, countdown: "--:--:--", nextEvent: "閉場", timeStr };
 }
 
 export default function MarketClock() {
@@ -128,6 +130,7 @@ export default function MarketClock() {
   return (
     <div className="flex items-center gap-3 text-xs">
       <StatusDot status={jp} />
+      <div className="w-px h-3 bg-gray-700" />
       <StatusDot status={us} />
     </div>
   );
@@ -142,6 +145,7 @@ function StatusDot({ status }: { status: MarketStatus }) {
         }`}
       />
       <span className="text-gray-400">{status.label}</span>
+      <span className="font-mono text-gray-300">{status.timeStr}</span>
       <span className={`font-mono font-bold ${status.isOpen ? "text-green-400" : "text-gray-500"}`}>
         {status.countdown}
       </span>
