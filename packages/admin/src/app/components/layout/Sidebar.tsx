@@ -39,7 +39,7 @@ export default function Sidebar() {
         ))}
 
         <a
-          href={`${typeof window !== "undefined" ? window.location.protocol + "//" + window.location.hostname : ""}:3000`}
+          href={process.env.NEXT_PUBLIC_APP_URL || "https://kabu.serken.tech"}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-brand-400 hover:text-brand-300 hover:bg-gray-800 mt-6"
