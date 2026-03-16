@@ -159,6 +159,170 @@ adminRouter.get("/transactions", async (req: AuthRequest, res) => {
   }
 });
 
+/** ランキング (総資産評価額・損益率) */
+adminRouter.get("/rankings", async (req: AuthRequest, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: { isActive: true },
+      select: {
+        id: true, email: true, name: true, role: true,
+        balance: true, balanceUsd: true,
+        holdings: { select: { symbol: true, market: true, quantity: true, avgCost: true } },
+        marginPositions: {
+          where: { status: "OPEN" },
+          select: { symbol: true, market: true, side: true, quantity: true, entryPrice: true, margin: true },
+        },
+      },
+    });
+
+    // 全ユーザーの保有銘柄から一意なシンボルを収集
+    const symbolSet = new Set<string>();
+    for (const u of users) {
+      for (const h of u.holdings) symbolSet.add(`${h.symbol}:${h.market}`);
+      for (const m of u.marginPositions) symbolSet.add(`${m.symbol}:${m.market}`);
+    }
+
+    // 各銘柄の現在価格を取得
+    const { getQuote } = await import("../services/stocks/index.js");
+    const priceMap = new Map<string, number>();
+    const pricePromises = Array.from(symbolSet).map(async (key) => {
+      const [symbol, market] = key.split(":");
+      try {
+        const q = await getQuote(symbol, market as "JP" | "US");
+        priceMap.set(key, q.price);
+      } catch {
+        // 価格取得失敗は無視
+      }
+    });
+    await Promise.all(pricePromises);
+
+    // ランキング計算
+    const rankings = users.map((u) => {
+      let holdingsValueJpy = 0;
+      let holdingsCostJpy = 0;
+      let holdingsValueUsd = 0;
+      let holdingsCostUsd = 0;
+
+      for (const h of u.holdings) {
+        const price = priceMap.get(`${h.symbol}:${h.market}`);
+        const marketValue = price ? price * h.quantity : h.avgCost * h.quantity;
+        const costBasis = h.avgCost * h.quantity;
+        if (h.market === "JP") {
+          holdingsValueJpy += marketValue;
+          holdingsCostJpy += costBasis;
+        } else {
+          holdingsValueUsd += marketValue;
+          holdingsCostUsd += costBasis;
+        }
+      }
+
+      // 信用ポジションの含み損益
+      let marginPnlJpy = 0;
+      let marginPnlUsd = 0;
+      for (const m of u.marginPositions) {
+        const price = priceMap.get(`${m.symbol}:${m.market}`);
+        if (!price) continue;
+        const pnl = m.side === "LONG"
+          ? (price - m.entryPrice) * m.quantity
+          : (m.entryPrice - price) * m.quantity;
+        if (m.market === "JP") marginPnlJpy += pnl;
+        else marginPnlUsd += pnl;
+      }
+
+      const totalAssetJpy = u.balance + holdingsValueJpy + marginPnlJpy;
+      const totalAssetUsd = u.balanceUsd + holdingsValueUsd + marginPnlUsd;
+      const totalCostJpy = holdingsCostJpy;
+      const totalCostUsd = holdingsCostUsd;
+      const totalPnlJpy = holdingsValueJpy - holdingsCostJpy + marginPnlJpy;
+      const totalPnlUsd = holdingsValueUsd - holdingsCostUsd + marginPnlUsd;
+      const pnlRateJpy = totalCostJpy > 0 ? (totalPnlJpy / totalCostJpy) * 100 : 0;
+      const pnlRateUsd = totalCostUsd > 0 ? (totalPnlUsd / totalCostUsd) * 100 : 0;
+
+      return {
+        id: u.id, name: u.name, email: u.email, role: u.role,
+        totalAssetJpy, totalAssetUsd,
+        totalPnlJpy, totalPnlUsd,
+        pnlRateJpy, pnlRateUsd,
+        holdingsCount: u.holdings.length,
+        marginCount: u.marginPositions.length,
+      };
+    });
+
+    // 総資産額(JPY)でソート
+    rankings.sort((a, b) => b.totalAssetJpy - a.totalAssetJpy);
+
+    res.json({ rankings, pricesFetched: priceMap.size, symbolsTotal: symbolSet.size });
+  } catch (error: unknown) {
+    console.error("[admin/rankings] Error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Error" });
+  }
+});
+
+/** ユーザー詳細（現在価格付き） */
+adminRouter.get("/users/:id/portfolio", async (req: AuthRequest, res) => {
+  try {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: req.params.id },
+      select: {
+        id: true, name: true, email: true, role: true,
+        balance: true, balanceUsd: true, marginRate: true,
+        holdings: true,
+        marginPositions: { where: { status: "OPEN" } },
+      },
+    });
+
+    // 保有銘柄の現在価格取得
+    const { getQuote } = await import("../services/stocks/index.js");
+    const holdingsWithPrice = await Promise.all(
+      user.holdings.map(async (h) => {
+        try {
+          const q = await getQuote(h.symbol, h.market as "JP" | "US");
+          const marketValue = q.price * h.quantity;
+          const costBasis = h.avgCost * h.quantity;
+          return {
+            ...h,
+            currentPrice: q.price,
+            marketValue,
+            pnl: marketValue - costBasis,
+            pnlPercent: costBasis > 0 ? ((marketValue - costBasis) / costBasis) * 100 : 0,
+          };
+        } catch {
+          return {
+            ...h,
+            currentPrice: null,
+            marketValue: h.avgCost * h.quantity,
+            pnl: 0,
+            pnlPercent: 0,
+          };
+        }
+      })
+    );
+
+    // 信用ポジションの現在価格取得
+    const marginWithPrice = await Promise.all(
+      user.marginPositions.map(async (m) => {
+        try {
+          const q = await getQuote(m.symbol, m.market as "JP" | "US");
+          const pnl = m.side === "LONG"
+            ? (q.price - m.entryPrice) * m.quantity
+            : (m.entryPrice - q.price) * m.quantity;
+          return { ...m, currentPrice: q.price, pnl };
+        } catch {
+          return { ...m, currentPrice: null, pnl: 0 };
+        }
+      })
+    );
+
+    res.json({
+      ...user,
+      holdings: holdingsWithPrice,
+      marginPositions: marginWithPrice,
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Error" });
+  }
+});
+
 /** 監査ログ閲覧 (管理者のみ) */
 adminRouter.get("/audit-logs", async (req: AuthRequest, res) => {
   try {

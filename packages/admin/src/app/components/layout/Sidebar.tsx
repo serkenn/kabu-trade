@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const adminNav = [
   { href: "/users", label: "ユーザー管理", icon: "👥" },
+  { href: "/rankings", label: "ランキング", icon: "🏆" },
   { href: "/transactions", label: "取引履歴", icon: "💰" },
   { href: "/settings", label: "設定", icon: "⚙️" },
 ];

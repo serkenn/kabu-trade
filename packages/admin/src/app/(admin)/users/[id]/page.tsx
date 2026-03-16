@@ -3,6 +3,30 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+interface HoldingDetail {
+  id: string;
+  symbol: string;
+  market: string;
+  quantity: number;
+  avgCost: number;
+  currentPrice?: number | null;
+  marketValue?: number;
+  pnl?: number;
+  pnlPercent?: number;
+}
+
+interface MarginDetail {
+  id: string;
+  symbol: string;
+  market: string;
+  side: string;
+  quantity: number;
+  entryPrice: number;
+  margin: number;
+  currentPrice?: number | null;
+  pnl?: number;
+}
+
 interface UserDetail {
   id: string;
   email: string;
@@ -12,22 +36,8 @@ interface UserDetail {
   balanceUsd: number;
   marginRate: number;
   isActive: boolean;
-  holdings: Array<{
-    id: string;
-    symbol: string;
-    market: string;
-    quantity: number;
-    avgCost: number;
-  }>;
-  marginPositions: Array<{
-    id: string;
-    symbol: string;
-    market: string;
-    side: string;
-    quantity: number;
-    entryPrice: number;
-    margin: number;
-  }>;
+  holdings: HoldingDetail[];
+  marginPositions: MarginDetail[];
   orders: Array<{
     id: string;
     symbol: string;
@@ -63,20 +73,25 @@ export default function AdminUserDetailPage() {
   });
 
   useEffect(() => {
-    fetch(`/api/admin/users/${params.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setUser(data);
-        setForm({
-          balance: data.balance,
-          balanceUsd: data.balanceUsd,
-          marginRate: data.marginRate,
-          isActive: data.isActive,
-          role: data.role,
-        });
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    // 基本情報 + ポートフォリオ(現在価格付き)を並行取得
+    Promise.all([
+      fetch(`/api/admin/users/${params.id}`).then((r) => r.json()),
+      fetch(`/api/admin/users/${params.id}/portfolio`).then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([data, portfolio]) => {
+      // ポートフォリオが取得できた場合、保有銘柄と信用ポジションを上書き
+      if (portfolio) {
+        data.holdings = portfolio.holdings;
+        data.marginPositions = portfolio.marginPositions;
+      }
+      setUser(data);
+      setForm({
+        balance: data.balance,
+        balanceUsd: data.balanceUsd,
+        marginRate: data.marginRate,
+        isActive: data.isActive,
+        role: data.role,
+      });
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [params.id]);
 
   const handleSave = async () => {
@@ -224,31 +239,78 @@ export default function AdminUserDetailPage() {
       {/* 保有銘柄 */}
       <div className="card">
         <h2 className="font-bold text-lg mb-4">保有銘柄 ({user.holdings.length})</h2>
-        {user.holdings.length > 0 && (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className="table-header">銘柄</th>
-                <th className="table-header text-right">数量</th>
-                <th className="table-header text-right">平均取得単価</th>
-                <th className="table-header text-right">評価額</th>
-              </tr>
-            </thead>
-            <tbody>
-              {user.holdings.map((h) => (
-                <tr key={h.id} className="border-b border-gray-800/50">
-                  <td className="table-cell font-mono text-brand-400">{h.symbol}</td>
-                  <td className="table-cell text-right font-mono">{h.quantity}</td>
-                  <td className="table-cell text-right font-mono">
-                    {h.market === "JP" ? "¥" : "$"}{h.avgCost.toLocaleString()}
-                  </td>
-                  <td className="table-cell text-right font-mono">
-                    {h.market === "JP" ? "¥" : "$"}{(h.avgCost * h.quantity).toLocaleString()}
-                  </td>
+        {user.holdings.length > 0 ? (
+          <>
+            {/* サマリー */}
+            {(() => {
+              const totalPnl = user.holdings.reduce((s, h) => s + (h.pnl || 0), 0);
+              const totalValue = user.holdings.reduce((s, h) => s + (h.marketValue || h.avgCost * h.quantity), 0);
+              return (
+                <div className="flex gap-6 mb-4 text-sm">
+                  <div>
+                    <span className="text-gray-400">時価評価合計: </span>
+                    <span className="font-mono font-bold">¥{totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">含み損益合計: </span>
+                    <span className={`font-mono font-bold ${totalPnl >= 0 ? "text-red-400" : "text-green-400"}`}>
+                      {totalPnl >= 0 ? "+" : ""}¥{totalPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-800">
+                  <th className="table-header">銘柄</th>
+                  <th className="table-header">市場</th>
+                  <th className="table-header text-right">数量</th>
+                  <th className="table-header text-right">平均取得単価</th>
+                  <th className="table-header text-right">現在値</th>
+                  <th className="table-header text-right">時価評価額</th>
+                  <th className="table-header text-right">損益</th>
+                  <th className="table-header text-right">損益率</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {user.holdings.map((h) => {
+                  const c = h.market === "JP" ? "¥" : "$";
+                  const pnlColor = h.pnl !== undefined && h.pnl !== 0
+                    ? (h.market === "JP"
+                        ? (h.pnl >= 0 ? "text-red-400" : "text-green-400")
+                        : (h.pnl >= 0 ? "text-green-400" : "text-red-400"))
+                    : "text-gray-500";
+                  return (
+                    <tr key={h.id} className="border-b border-gray-800/50 hover:bg-gray-800/50">
+                      <td className="table-cell font-mono font-bold text-brand-400">{h.symbol}</td>
+                      <td className="table-cell">
+                        <span className="text-xs bg-gray-800 px-2 py-0.5 rounded">
+                          {h.market === "JP" ? "東証" : "US"}
+                        </span>
+                      </td>
+                      <td className="table-cell text-right font-mono">{h.quantity.toLocaleString()}</td>
+                      <td className="table-cell text-right font-mono">{c}{h.avgCost.toLocaleString()}</td>
+                      <td className="table-cell text-right font-mono">
+                        {h.currentPrice != null ? `${c}${h.currentPrice.toLocaleString()}` : <span className="text-gray-600">-</span>}
+                      </td>
+                      <td className="table-cell text-right font-mono font-bold">
+                        {c}{(h.marketValue || h.avgCost * h.quantity).toLocaleString()}
+                      </td>
+                      <td className={`table-cell text-right font-mono font-bold ${pnlColor}`}>
+                        {h.pnl !== undefined ? `${h.pnl >= 0 ? "+" : ""}${c}${h.pnl.toLocaleString(undefined, { maximumFractionDigits: h.market === "JP" ? 0 : 2 })}` : "-"}
+                      </td>
+                      <td className={`table-cell text-right font-mono ${pnlColor}`}>
+                        {h.pnlPercent !== undefined ? `${h.pnlPercent >= 0 ? "+" : ""}${h.pnlPercent.toFixed(2)}%` : "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <p className="text-gray-500 text-center py-4">保有銘柄なし</p>
         )}
       </div>
 
@@ -258,6 +320,17 @@ export default function AdminUserDetailPage() {
           <h2 className="font-bold text-lg mb-4">
             信用建玉 ({user.marginPositions.length})
           </h2>
+          {(() => {
+            const totalMarginPnl = user.marginPositions.reduce((s, p) => s + (p.pnl || 0), 0);
+            return totalMarginPnl !== 0 && (
+              <div className="mb-4 text-sm">
+                <span className="text-gray-400">含み損益合計: </span>
+                <span className={`font-mono font-bold ${totalMarginPnl >= 0 ? "text-red-400" : "text-green-400"}`}>
+                  {totalMarginPnl >= 0 ? "+" : ""}¥{totalMarginPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+            );
+          })()}
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-800">
@@ -265,25 +338,38 @@ export default function AdminUserDetailPage() {
                 <th className="table-header">売買</th>
                 <th className="table-header text-right">数量</th>
                 <th className="table-header text-right">建値</th>
+                <th className="table-header text-right">現在値</th>
                 <th className="table-header text-right">証拠金</th>
+                <th className="table-header text-right">含み損益</th>
               </tr>
             </thead>
             <tbody>
-              {user.marginPositions.map((p) => (
-                <tr key={p.id} className="border-b border-gray-800/50">
-                  <td className="table-cell font-mono text-brand-400">{p.symbol}</td>
-                  <td className="table-cell">
-                    <span className={p.side === "LONG" ? "text-red-400" : "text-green-400"}>
-                      {p.side === "LONG" ? "買建" : "売建"}
-                    </span>
-                  </td>
-                  <td className="table-cell text-right font-mono">{p.quantity}</td>
-                  <td className="table-cell text-right font-mono">{p.entryPrice.toLocaleString()}</td>
-                  <td className="table-cell text-right font-mono text-yellow-400">
-                    ¥{p.margin.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
+              {user.marginPositions.map((p) => {
+                const pnlColor = p.pnl && p.pnl !== 0
+                  ? (p.pnl >= 0 ? "text-red-400" : "text-green-400")
+                  : "text-gray-500";
+                return (
+                  <tr key={p.id} className="border-b border-gray-800/50 hover:bg-gray-800/50">
+                    <td className="table-cell font-mono text-brand-400">{p.symbol}</td>
+                    <td className="table-cell">
+                      <span className={p.side === "LONG" ? "text-red-400" : "text-green-400"}>
+                        {p.side === "LONG" ? "買建" : "売建"}
+                      </span>
+                    </td>
+                    <td className="table-cell text-right font-mono">{p.quantity}</td>
+                    <td className="table-cell text-right font-mono">{p.entryPrice.toLocaleString()}</td>
+                    <td className="table-cell text-right font-mono">
+                      {p.currentPrice != null ? p.currentPrice.toLocaleString() : <span className="text-gray-600">-</span>}
+                    </td>
+                    <td className="table-cell text-right font-mono text-yellow-400">
+                      ¥{p.margin.toLocaleString()}
+                    </td>
+                    <td className={`table-cell text-right font-mono font-bold ${pnlColor}`}>
+                      {p.pnl !== undefined ? `${p.pnl >= 0 ? "+" : ""}¥${p.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "-"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
