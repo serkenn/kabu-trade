@@ -3,7 +3,7 @@
  * 認証: リフレッシュトークン → IDトークン → Bearer
  */
 
-const BASE_URL = "https://api.jpx-jquants.com/v2";
+const BASE_URL = "https://api.jquants.com/v2";
 
 function getRefreshToken(): string {
   const key = process.env.JQUANTS_API_KEY;
