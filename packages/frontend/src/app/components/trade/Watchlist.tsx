@@ -19,13 +19,19 @@ interface Props {
 export default function Watchlist({ currentSymbol, currentMarket, currentName, onSelect }: Props) {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const fetchList = useCallback(async () => {
     try {
       const res = await fetch("/api/watchlist");
-      if (res.ok) setItems(await res.json());
-    } catch {
-      // ignore
+      if (res.ok) {
+        setItems(await res.json());
+      } else {
+        console.error("Watchlist fetch failed:", res.status);
+      }
+    } catch (e) {
+      console.error("Watchlist fetch error:", e);
     } finally {
       setLoading(false);
     }
@@ -38,27 +44,34 @@ export default function Watchlist({ currentSymbol, currentMarket, currentName, o
   const isInList = items.some((i) => i.symbol === currentSymbol && i.market === currentMarket);
 
   const addCurrent = async () => {
-    if (!currentSymbol) return;
+    if (!currentSymbol || adding) return;
+    setAdding(true);
+    setError(null);
     try {
+      const body = { symbol: currentSymbol, market: currentMarket, name: currentName || "" };
       const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol: currentSymbol, market: currentMarket, name: currentName || "" }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
-        fetchList();
+        await fetchList();
       } else {
-        const err = await res.json().catch(() => ({}));
+        const err = await res.text().catch(() => "");
         console.error("Watchlist add failed:", res.status, err);
+        setError(`追加失敗 (${res.status})`);
       }
     } catch (e) {
       console.error("Watchlist add error:", e);
+      setError("追加失敗");
+    } finally {
+      setAdding(false);
     }
   };
 
   const remove = async (symbol: string, market: string) => {
     try {
-      const res = await fetch(`/api/watchlist/${symbol}/${market}`, { method: "DELETE" });
+      const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}/${encodeURIComponent(market)}`, { method: "DELETE" });
       if (res.ok) fetchList();
     } catch {
       // ignore
@@ -72,12 +85,17 @@ export default function Watchlist({ currentSymbol, currentMarket, currentName, o
         {currentSymbol && !isInList && (
           <button
             onClick={addCurrent}
-            className="text-[10px] text-brand-400 hover:text-brand-300 transition-colors"
+            disabled={adding}
+            className="text-[10px] text-brand-400 hover:text-brand-300 transition-colors disabled:opacity-50"
           >
-            + 追加
+            {adding ? "追加中..." : "+ 追加"}
           </button>
         )}
       </div>
+
+      {error && (
+        <div className="px-3 py-1 text-[10px] text-red-400">{error}</div>
+      )}
 
       <div className="max-h-60 overflow-y-auto">
         {loading ? (

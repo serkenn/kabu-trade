@@ -1,14 +1,8 @@
 import * as finnhub from "./finnhub.js";
+import * as nikkei from "./nikkei.js";
 import * as stooq from "./stooq.js";
 import type { StockQuote, CandleData } from "@kabu-trade/shared";
 import type { Market } from "@prisma/client";
-
-// J-Quants は任意 (API key が設定されている場合のみ使用)
-const hasJQuants = !!process.env.JQUANTS_API_KEY;
-let jquants: typeof import("./jquants.js") | null = null;
-if (hasJQuants) {
-  import("./jquants.js").then((m) => { jquants = m; });
-}
 
 export async function getQuote(symbol: string, market: Market): Promise<StockQuote> {
   if (market === "US") {
@@ -27,21 +21,40 @@ export async function getQuote(symbol: string, market: Market): Promise<StockQuo
     };
   }
 
-  // JP株: Stooq を使用 (J-Quants がなくても動作)
-  const q = await stooq.getLatestQuote(symbol, "JP");
-  return {
-    symbol,
-    market: "JP",
-    price: q.price,
-    change: q.change,
-    changePercent: q.changePercent,
-    high: q.high,
-    low: q.low,
-    open: q.open,
-    previousClose: q.previousClose,
-    volume: q.volume,
-    timestamp: q.timestamp,
-  };
+  // JP株: 日経 → Stooq フォールバック
+  try {
+    const q = await nikkei.getQuote(symbol);
+    return {
+      symbol,
+      market: "JP",
+      name: q.name,
+      price: q.price,
+      change: q.change,
+      changePercent: q.changePercent,
+      high: q.high,
+      low: q.low,
+      open: q.open,
+      previousClose: q.previousClose,
+      volume: q.volume,
+      timestamp: q.timestamp,
+    };
+  } catch (e) {
+    console.warn(`[quote] Nikkei failed for ${symbol}, trying Stooq:`, e);
+    const q = await stooq.getLatestQuote(symbol, "JP");
+    return {
+      symbol,
+      market: "JP",
+      price: q.price,
+      change: q.change,
+      changePercent: q.changePercent,
+      high: q.high,
+      low: q.low,
+      open: q.open,
+      previousClose: q.previousClose,
+      volume: q.volume,
+      timestamp: q.timestamp,
+    };
+  }
 }
 
 export async function getCandles(
@@ -49,10 +62,67 @@ export async function getCandles(
   market: Market,
   days: number = 90
 ): Promise<CandleData[]> {
-  // JP株・US株ともに Stooq を使用
-  const candles = await stooq.getCandles(symbol, market as "JP" | "US", days);
+  if (market === "US") {
+    // US株: Stooq を使用 (Finnhub free は 403 の場合あり)
+    try {
+      const candles = await stooq.getCandles(symbol, "US", days);
+      if (candles.length > 0) {
+        return candles.map((c) => ({
+          time: c.date,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          volume: c.volume,
+        }));
+      }
+    } catch (e) {
+      console.warn(`[candles] Stooq failed for US ${symbol}:`, e);
+    }
+
+    // Finnhub フォールバック
+    try {
+      const to = Math.floor(Date.now() / 1000);
+      const from = to - days * 86400;
+      const data = await finnhub.getCandles(symbol, "D", from, to);
+      if (data.s === "ok" && data.t) {
+        return data.t.map((t, i) => ({
+          time: new Date(t * 1000).toISOString().split("T")[0],
+          open: data.o[i],
+          high: data.h[i],
+          low: data.l[i],
+          close: data.c[i],
+          volume: data.v[i],
+        }));
+      }
+    } catch (e) {
+      console.warn(`[candles] Finnhub also failed for ${symbol}:`, e);
+    }
+
+    return [];
+  }
+
+  // JP株: 日経 → Stooq フォールバック
+  try {
+    const candles = await nikkei.getCandles(symbol, days);
+    if (candles.length > 0) {
+      return candles.map((c) => ({
+        time: c.date,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      }));
+    }
+  } catch (e) {
+    console.warn(`[candles] Nikkei failed for ${symbol}, trying Stooq:`, e);
+  }
+
+  // Stooq フォールバック
+  const candles = await stooq.getCandles(symbol, "JP", days);
   return candles.map((c) => ({
-    time: c.date, // "YYYY-MM-DD" format (lightweight-charts compatible)
+    time: c.date,
     open: c.open,
     high: c.high,
     low: c.low,
@@ -66,33 +136,19 @@ export async function searchSymbols(
   market: Market
 ): Promise<{ symbol: string; name: string }[]> {
   if (market === "US") {
-    const results = await finnhub.searchSymbol(query);
-    return results.slice(0, 20).map((r) => ({
-      symbol: r.symbol,
-      name: r.description,
-    }));
-  }
-
-  // JP株: J-Quants があれば使用、なければローカル銘柄リストで検索
-  if (jquants) {
     try {
-      const info = await jquants.getListedInfo();
-      const q = query.toLowerCase();
-      return info
-        .filter(
-          (i) =>
-            i.Code.includes(query) ||
-            i.CompanyName.toLowerCase().includes(q) ||
-            i.CompanyNameEnglish.toLowerCase().includes(q)
-        )
-        .slice(0, 20)
-        .map((i) => ({ symbol: i.Code, name: i.CompanyName }));
+      const results = await finnhub.searchSymbol(query);
+      return results.slice(0, 20).map((r) => ({
+        symbol: r.symbol,
+        name: r.description,
+      }));
     } catch (e) {
-      console.warn("[search] J-Quants failed, using local list:", e);
+      console.warn("[search] Finnhub failed:", e);
+      return [];
     }
   }
 
-  // ローカル銘柄リストで検索
+  // JP株: ローカル銘柄リストで検索
   return searchLocalJPStocks(query);
 }
 
@@ -158,7 +214,6 @@ const JP_STOCKS: JPStock[] = [
   { code: "8591", name: "オリックス" },
   { code: "9613", name: "NTTデータグループ" },
   { code: "2413", name: "エムスリー" },
-  { code: "3086", name: "J.フロント リテイリング" },
   { code: "4151", name: "協和キリン" },
   { code: "4307", name: "野村総合研究所" },
   { code: "4452", name: "花王" },
@@ -187,7 +242,6 @@ const JP_STOCKS: JPStock[] = [
   { code: "2802", name: "味の素" },
   { code: "3099", name: "三越伊勢丹ホールディングス" },
   { code: "4689", name: "LINEヤフー" },
-  { code: "6902", name: "デンソー" },
   { code: "7733", name: "オリンパス" },
   { code: "1605", name: "INPEX" },
   { code: "5020", name: "ENEOSホールディングス" },
@@ -203,6 +257,7 @@ const JP_STOCKS: JPStock[] = [
   { code: "6645", name: "オムロン" },
   { code: "7182", name: "ゆうちょ銀行" },
   { code: "6753", name: "シャープ" },
+  { code: "3086", name: "J.フロント リテイリング" },
 ];
 
 function searchLocalJPStocks(query: string): { symbol: string; name: string }[] {

@@ -22,28 +22,34 @@ watchlistRouter.get("/", async (req: AuthRequest, res) => {
 watchlistRouter.post("/", async (req: AuthRequest, res) => {
   try {
     const { symbol, market, name } = req.body;
+    console.log("[watchlist] POST:", { symbol, market, name, userId: req.user!.id });
     if (!symbol || !market) {
       return res.status(400).json({ error: "symbol and market are required" });
+    }
+    if (market !== "JP" && market !== "US") {
+      return res.status(400).json({ error: "market must be JP or US" });
     }
 
     const item = await prisma.watchlist.upsert({
       where: {
         userId_symbol_market: {
           userId: req.user!.id,
-          symbol,
+          symbol: String(symbol),
           market,
         },
       },
       update: { name: name || "" },
       create: {
         userId: req.user!.id,
-        symbol,
+        symbol: String(symbol),
         market,
         name: name || "",
       },
     });
+    console.log("[watchlist] Created:", item.id);
     res.json(item);
   } catch (error: unknown) {
+    console.error("[watchlist] POST error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Error" });
   }
 });
