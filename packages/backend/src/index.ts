@@ -13,6 +13,7 @@ import { accountRouter } from "./routes/account.js";
 import { adminRouter } from "./routes/admin.js";
 import { botRouter } from "./routes/bot.js";
 import { apiKeysRouter } from "./routes/apikeys.js";
+import { watchlistRouter } from "./routes/watchlist.js";
 import { cleanExpiredSessions } from "./lib/security.js";
 
 const app = express();
@@ -71,6 +72,7 @@ app.use("/api/trade", tradeRouter);
 app.use("/api/margin", marginRouter);
 app.use("/api/account", accountRouter);
 app.use("/api/apikeys", apiKeysRouter);
+app.use("/api/watchlist", watchlistRouter);
 
 // 管理者API (Cookie認証 + ADMIN)
 app.use("/api/admin", adminRouter);

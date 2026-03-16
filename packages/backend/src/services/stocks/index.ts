@@ -66,7 +66,7 @@ export async function getCandles(
   const to = now.toISOString().split("T")[0].replace(/-/g, "");
   const quotes = await jquants.getDailyQuotes(symbol, from, to);
   return quotes.map((q) => ({
-    time: new Date(q.Date).getTime() / 1000,
+    time: q.Date,
     open: q.Open,
     high: q.High,
     low: q.Low,

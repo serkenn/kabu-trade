@@ -14,7 +14,7 @@ export interface StockQuote {
 }
 
 export interface CandleData {
-  time: number;
+  time: number | string;
   open: number;
   high: number;
   low: number;

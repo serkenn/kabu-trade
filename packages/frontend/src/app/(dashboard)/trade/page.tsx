@@ -6,6 +6,7 @@ import QuoteDisplay from "@/app/components/trade/QuoteDisplay";
 import OrderForm from "@/app/components/trade/OrderForm";
 import PriceChart from "@/app/components/charts/PriceChart";
 import MarketClock from "@/app/components/trade/MarketClock";
+import Watchlist from "@/app/components/trade/Watchlist";
 import { useAuth } from "@/hooks/useAuth";
 import type { StockQuote } from "@/types";
 
@@ -17,12 +18,14 @@ export default function TradePage() {
   const { user, fetchUser } = useAuth();
 
   const loadQuote = useCallback(
-    async (symbol: string) => {
+    async (symbol: string, mkt?: "JP" | "US") => {
+      const m = mkt || market;
+      if (mkt && mkt !== market) setMarket(mkt);
       setSelectedSymbol(symbol);
       setQuoteLoading(true);
       try {
         const res = await fetch(
-          `/api/stocks/quote?symbol=${symbol}&market=${market}`
+          `/api/stocks/quote?symbol=${symbol}&market=${m}`
         );
         if (res.ok) {
           setQuote(await res.json());
@@ -67,7 +70,7 @@ export default function TradePage() {
 
         {/* Search */}
         <div className="w-64">
-          <StockSearch market={market} onSelect={loadQuote} />
+          <StockSearch market={market} onSelect={(s) => loadQuote(s)} />
         </div>
 
         {/* Spacer */}
@@ -109,9 +112,16 @@ export default function TradePage() {
           </div>
         </div>
 
-        {/* Right: order panel */}
-        <div className="w-72 border-l border-gray-800 bg-gray-900 overflow-y-auto shrink-0">
+        {/* Right: order panel + watchlist */}
+        <div className="w-72 border-l border-gray-800 bg-gray-900 overflow-y-auto shrink-0 flex flex-col">
           <OrderForm quote={quote} onOrderPlaced={handleOrderPlaced} />
+          <div className="flex-1" />
+          <Watchlist
+            currentSymbol={selectedSymbol}
+            currentMarket={market}
+            currentName={quote?.name}
+            onSelect={(symbol, mkt) => loadQuote(symbol, mkt)}
+          />
         </div>
       </div>
     </div>

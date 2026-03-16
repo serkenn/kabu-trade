@@ -79,6 +79,7 @@ model User {
   apiKeys         ApiKey[]
   sessions        Session[]
   auditLogs       AuditLog[]
+  watchlist       Watchlist[]
 
   @@map("users")
 }
@@ -212,6 +213,21 @@ model Transaction {
 
   @@index([userId])
   @@map("transactions")
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  symbol    String
+  market    Market
+  name      String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol, market])
+  @@index([userId])
+  @@map("watchlist")
 }
 
 model StockCache {
