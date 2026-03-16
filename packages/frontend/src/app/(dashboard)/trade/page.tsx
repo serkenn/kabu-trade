@@ -13,22 +13,26 @@ import type { StockQuote } from "@/types";
 export default function TradePage() {
   const [market, setMarket] = useState<"JP" | "US">("JP");
   const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedName, setSelectedName] = useState("");
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const { user, fetchUser } = useAuth();
 
   const loadQuote = useCallback(
-    async (symbol: string, mkt?: "JP" | "US") => {
+    async (symbol: string, mkt?: "JP" | "US", name?: string) => {
       const m = mkt || market;
       if (mkt && mkt !== market) setMarket(mkt);
       setSelectedSymbol(symbol);
+      if (name !== undefined) setSelectedName(name);
       setQuoteLoading(true);
       try {
         const res = await fetch(
           `/api/stocks/quote?symbol=${symbol}&market=${m}`
         );
         if (res.ok) {
-          setQuote(await res.json());
+          const q = await res.json();
+          if (name) q.name = name;
+          setQuote(q);
         }
       } catch {
         // ignore
@@ -70,7 +74,7 @@ export default function TradePage() {
 
         {/* Search */}
         <div className="w-64">
-          <StockSearch market={market} onSelect={(s) => loadQuote(s)} />
+          <StockSearch market={market} onSelect={(s, name) => loadQuote(s, undefined, name)} />
         </div>
 
         {/* Spacer */}
@@ -119,7 +123,7 @@ export default function TradePage() {
           <Watchlist
             currentSymbol={selectedSymbol}
             currentMarket={market}
-            currentName={quote?.name}
+            currentName={quote?.name || selectedName}
             onSelect={(symbol, mkt) => loadQuote(symbol, mkt)}
           />
         </div>

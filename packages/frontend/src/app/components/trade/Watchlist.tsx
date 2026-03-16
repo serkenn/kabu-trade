@@ -45,9 +45,14 @@ export default function Watchlist({ currentSymbol, currentMarket, currentName, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: currentSymbol, market: currentMarket, name: currentName || "" }),
       });
-      if (res.ok) fetchList();
-    } catch {
-      // ignore
+      if (res.ok) {
+        fetchList();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.error("Watchlist add failed:", res.status, err);
+      }
+    } catch (e) {
+      console.error("Watchlist add error:", e);
     }
   };
 

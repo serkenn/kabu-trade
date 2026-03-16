@@ -33,6 +33,7 @@ export default function PriceChart({ symbol, market }: Props) {
   const candleSeriesRef = useRef<any>(null);
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [days, setDays] = useState(90);
   const [orders, setOrders] = useState<OrderMarker[]>([]);
   const [drawingTool, setDrawingTool] = useState<DrawingTool>("none");
@@ -44,12 +45,30 @@ export default function PriceChart({ symbol, market }: Props) {
   useEffect(() => {
     if (!symbol) return;
     setLoading(true);
+    setChartError(null);
     fetch(`/api/stocks/candles?symbol=${symbol}&market=${market}&days=${days}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setCandles(data);
+      .then(async (r) => {
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${r.status}`);
+        }
+        return r.json();
       })
-      .catch(() => {})
+      .then((data) => {
+        if (Array.isArray(data)) {
+          if (data.length === 0) {
+            setChartError("チャートデータが取得できませんでした");
+          }
+          setCandles(data);
+        } else {
+          console.error("Candle data is not array:", data);
+          setChartError(data?.error || "不正なデータ形式");
+        }
+      })
+      .catch((e) => {
+        console.error("Candle fetch error:", e);
+        setChartError(e.message || "チャートデータの取得に失敗しました");
+      })
       .finally(() => setLoading(false));
   }, [symbol, market, days]);
 
@@ -347,8 +366,16 @@ export default function PriceChart({ symbol, market }: Props) {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500" />
           </div>
         ) : candles.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-gray-600 text-sm">
-            データがありません
+          <div className="h-full flex flex-col items-center justify-center text-gray-600 text-sm gap-2">
+            <span>{chartError || "データがありません"}</span>
+            {chartError && (
+              <button
+                onClick={() => setDays(days)}
+                className="text-xs text-brand-400 hover:text-brand-300"
+              >
+                再試行
+              </button>
+            )}
           </div>
         ) : (
           <>

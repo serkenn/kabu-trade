@@ -42,9 +42,13 @@ stocksRouter.get("/candles", async (req: AuthRequest, res) => {
     if (!symbol) return res.status(400).json({ error: "symbol is required" });
 
     const candles = await getCandles(symbol, market, days);
+    if (candles.length === 0) {
+      console.warn(`[candles] No data for ${symbol} (${market}, ${days}d)`);
+    }
     res.json(candles);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error";
+    console.error(`[candles] Error for ${req.query.symbol} (${req.query.market}):`, message);
     res.status(500).json({ error: message });
   }
 });

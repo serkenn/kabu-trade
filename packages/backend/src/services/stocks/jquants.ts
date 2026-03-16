@@ -47,20 +47,28 @@ async function jquantsFetch(path: string, ttl = CACHE_TTL): Promise<any> {
 
 // ==================== レスポンス型 ====================
 
-/** /equities/master のレスポンスアイテム */
+/** /equities/master のレスポンスアイテム (Premium Plan / Standard API 両対応) */
 export interface JQuantsMasterItem {
   Code: string;
+  // Premium Plan fields
   CoName: string;
   CoNameEn: string;
   S17Nm: string;
   S33Nm: string;
   MktNm: string;
+  // Standard API fields
+  CompanyName: string;
+  CompanyNameEnglish: string;
+  Sector17CodeName: string;
+  Sector33CodeName: string;
+  MarketCodeName: string;
 }
 
-/** /equities/bars/daily のレスポンスアイテム */
+/** /equities/bars/daily のレスポンスアイテム (Premium Plan / Standard API 両対応) */
 export interface JQuantsBarItem {
   Date: string;
   Code: string;
+  // Premium Plan fields
   O: number;   // Open
   H: number;   // High
   L: number;   // Low
@@ -71,6 +79,17 @@ export interface JQuantsBarItem {
   AdjL: number;
   AdjC: number;
   AdjVo: number;
+  // Standard API fields
+  Open: number;
+  High: number;
+  Low: number;
+  Close: number;
+  Volume: number;
+  AdjustmentOpen: number;
+  AdjustmentHigh: number;
+  AdjustmentLow: number;
+  AdjustmentClose: number;
+  AdjustmentVolume: number;
 }
 
 // ==================== 公開関数 ====================
@@ -100,41 +119,55 @@ export interface JQuantsListedInfo {
 }
 
 export async function getListedInfo(code?: string): Promise<JQuantsListedInfo[]> {
-  const path = code
+  // Try Premium Plan endpoint first, fallback to standard API
+  const premiumPath = code
     ? `/equities/master?code=${toCode5(code)}`
     : "/equities/master";
+  const standardPath = code
+    ? `/listed/info?code=${toCode5(code)}`
+    : "/listed/info";
+  const path = process.env.JQUANTS_PREMIUM === "true" ? premiumPath : standardPath;
   const res = await jquantsFetch(path, MASTER_CACHE_TTL);
-  const items: JQuantsMasterItem[] = res.data || [];
+  // Support both Premium Plan ("data") and standard API ("info") response keys
+  const items: JQuantsMasterItem[] = res.data || res.info || [];
   // 旧インターフェースに変換
   return items.map((i) => ({
     Code: i.Code.length === 5 ? i.Code.slice(0, 4) : i.Code,
-    CompanyName: i.CoName,
-    CompanyNameEnglish: i.CoNameEn || "",
+    CompanyName: i.CoName || i.CompanyName || "",
+    CompanyNameEnglish: i.CoNameEn || i.CompanyNameEnglish || "",
     Sector17Code: "",
-    Sector17CodeName: i.S17Nm || "",
+    Sector17CodeName: i.S17Nm || i.Sector17CodeName || "",
     Sector33Code: "",
-    Sector33CodeName: i.S33Nm || "",
+    Sector33CodeName: i.S33Nm || i.Sector33CodeName || "",
     MarketCode: "",
-    MarketCodeName: i.MktNm || "",
+    MarketCodeName: i.MktNm || i.MarketCodeName || "",
   }));
 }
 
 export async function getDailyQuotes(code: string, from?: string, to?: string): Promise<JQuantsQuote[]> {
-  let path = `/equities/bars/daily?code=${toCode5(code)}`;
+  // Use Premium Plan or standard API endpoint
+  const endpoint = process.env.JQUANTS_PREMIUM === "true"
+    ? "/equities/bars/daily"
+    : "/prices/daily_quotes";
+  let path = `${endpoint}?code=${toCode5(code)}`;
   if (from) path += `&from=${from}`;
   if (to) path += `&to=${to}`;
   const res = await jquantsFetch(path);
-  const items: JQuantsBarItem[] = res.data || [];
-  // 旧インターフェースに変換
+  // Support both Premium Plan ("data") and standard API ("daily_quotes") response keys
+  const items: JQuantsBarItem[] = res.data || res.daily_quotes || [];
+  if (items.length === 0) {
+    console.warn(`[J-Quants] No daily data for ${code}, keys: ${Object.keys(res).join(",")}`);
+  }
+  // 旧インターフェースに変換 (Premium Plan / Standard API 両対応)
   return items.map((i) => ({
     Code: i.Code,
     Date: i.Date,
-    Open: i.AdjO ?? i.O,
-    High: i.AdjH ?? i.H,
-    Low: i.AdjL ?? i.L,
-    Close: i.AdjC ?? i.C,
-    Volume: i.AdjVo ?? i.Vo,
-    AdjustmentClose: i.AdjC ?? i.C,
+    Open: i.AdjO ?? i.AdjustmentOpen ?? i.O ?? i.Open,
+    High: i.AdjH ?? i.AdjustmentHigh ?? i.H ?? i.High,
+    Low: i.AdjL ?? i.AdjustmentLow ?? i.L ?? i.Low,
+    Close: i.AdjC ?? i.AdjustmentClose ?? i.C ?? i.Close,
+    Volume: i.AdjVo ?? i.AdjustmentVolume ?? i.Vo ?? i.Volume,
+    AdjustmentClose: i.AdjC ?? i.AdjustmentClose ?? i.C ?? i.Close,
   }));
 }
 

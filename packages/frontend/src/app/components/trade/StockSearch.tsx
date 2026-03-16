@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 
 interface Props {
   market: "JP" | "US";
-  onSelect: (symbol: string) => void;
+  onSelect: (symbol: string, name: string) => void;
 }
 
 export default function StockSearch({ market, onSelect }: Props) {
@@ -67,7 +67,7 @@ export default function StockSearch({ market, onSelect }: Props) {
             <button
               key={r.symbol}
               onClick={() => {
-                onSelect(r.symbol);
+                onSelect(r.symbol, r.name);
                 setQuery(r.symbol);
                 setResults([]);
               }}
