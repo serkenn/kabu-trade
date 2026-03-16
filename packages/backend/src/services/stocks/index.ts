@@ -1,4 +1,3 @@
-import * as finnhub from "./finnhub.js";
 import * as nikkei from "./nikkei.js";
 import * as stooq from "./stooq.js";
 import type { StockQuote, CandleData } from "@kabu-trade/shared";
@@ -6,18 +5,20 @@ import type { Market } from "@prisma/client";
 
 export async function getQuote(symbol: string, market: Market): Promise<StockQuote> {
   if (market === "US") {
-    const q = await finnhub.getQuote(symbol);
+    // US株: Stooq から最新データ取得
+    const q = await stooq.getLatestQuote(symbol, "US");
     return {
       symbol,
       market: "US",
-      price: q.c,
-      change: q.d,
-      changePercent: q.dp,
-      high: q.h,
-      low: q.l,
-      open: q.o,
-      previousClose: q.pc,
-      timestamp: q.t * 1000,
+      price: q.price,
+      change: q.change,
+      changePercent: q.changePercent,
+      high: q.high,
+      low: q.low,
+      open: q.open,
+      previousClose: q.previousClose,
+      volume: q.volume,
+      timestamp: q.timestamp,
     };
   }
 
@@ -63,43 +64,16 @@ export async function getCandles(
   days: number = 90
 ): Promise<CandleData[]> {
   if (market === "US") {
-    // US株: Stooq を使用 (Finnhub free は 403 の場合あり)
-    try {
-      const candles = await stooq.getCandles(symbol, "US", days);
-      if (candles.length > 0) {
-        return candles.map((c) => ({
-          time: c.date,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-          volume: c.volume,
-        }));
-      }
-    } catch (e) {
-      console.warn(`[candles] Stooq failed for US ${symbol}:`, e);
-    }
-
-    // Finnhub フォールバック
-    try {
-      const to = Math.floor(Date.now() / 1000);
-      const from = to - days * 86400;
-      const data = await finnhub.getCandles(symbol, "D", from, to);
-      if (data.s === "ok" && data.t) {
-        return data.t.map((t, i) => ({
-          time: new Date(t * 1000).toISOString().split("T")[0],
-          open: data.o[i],
-          high: data.h[i],
-          low: data.l[i],
-          close: data.c[i],
-          volume: data.v[i],
-        }));
-      }
-    } catch (e) {
-      console.warn(`[candles] Finnhub also failed for ${symbol}:`, e);
-    }
-
-    return [];
+    // US株: Stooq
+    const candles = await stooq.getCandles(symbol, "US", days);
+    return candles.map((c) => ({
+      time: c.date,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume,
+    }));
   }
 
   // JP株: 日経 → Stooq フォールバック
@@ -119,7 +93,6 @@ export async function getCandles(
     console.warn(`[candles] Nikkei failed for ${symbol}, trying Stooq:`, e);
   }
 
-  // Stooq フォールバック
   const candles = await stooq.getCandles(symbol, "JP", days);
   return candles.map((c) => ({
     time: c.date,
@@ -136,27 +109,16 @@ export async function searchSymbols(
   market: Market
 ): Promise<{ symbol: string; name: string }[]> {
   if (market === "US") {
-    try {
-      const results = await finnhub.searchSymbol(query);
-      return results.slice(0, 20).map((r) => ({
-        symbol: r.symbol,
-        name: r.description,
-      }));
-    } catch (e) {
-      console.warn("[search] Finnhub failed:", e);
-      return [];
-    }
+    return searchLocalUSStocks(query);
   }
-
-  // JP株: ローカル銘柄リストで検索
   return searchLocalJPStocks(query);
 }
 
-// ==================== JP株ローカル銘柄リスト ====================
+// ==================== ローカル銘柄リスト ====================
 
-interface JPStock { code: string; name: string; }
+interface Stock { code: string; name: string; }
 
-const JP_STOCKS: JPStock[] = [
+const JP_STOCKS: Stock[] = [
   { code: "7203", name: "トヨタ自動車" },
   { code: "6758", name: "ソニーグループ" },
   { code: "9984", name: "ソフトバンクグループ" },
@@ -260,10 +222,71 @@ const JP_STOCKS: JPStock[] = [
   { code: "3086", name: "J.フロント リテイリング" },
 ];
 
+const US_STOCKS: Stock[] = [
+  { code: "AAPL", name: "Apple Inc." },
+  { code: "MSFT", name: "Microsoft Corporation" },
+  { code: "GOOGL", name: "Alphabet Inc." },
+  { code: "AMZN", name: "Amazon.com Inc." },
+  { code: "NVDA", name: "NVIDIA Corporation" },
+  { code: "META", name: "Meta Platforms Inc." },
+  { code: "TSLA", name: "Tesla Inc." },
+  { code: "BRK.B", name: "Berkshire Hathaway Inc." },
+  { code: "JPM", name: "JPMorgan Chase & Co." },
+  { code: "V", name: "Visa Inc." },
+  { code: "JNJ", name: "Johnson & Johnson" },
+  { code: "WMT", name: "Walmart Inc." },
+  { code: "MA", name: "Mastercard Inc." },
+  { code: "PG", name: "Procter & Gamble Co." },
+  { code: "HD", name: "The Home Depot Inc." },
+  { code: "DIS", name: "The Walt Disney Company" },
+  { code: "BAC", name: "Bank of America Corp." },
+  { code: "ADBE", name: "Adobe Inc." },
+  { code: "CRM", name: "Salesforce Inc." },
+  { code: "NFLX", name: "Netflix Inc." },
+  { code: "AMD", name: "Advanced Micro Devices" },
+  { code: "INTC", name: "Intel Corporation" },
+  { code: "CSCO", name: "Cisco Systems Inc." },
+  { code: "PEP", name: "PepsiCo Inc." },
+  { code: "KO", name: "The Coca-Cola Company" },
+  { code: "NKE", name: "Nike Inc." },
+  { code: "MRK", name: "Merck & Co. Inc." },
+  { code: "ABBV", name: "AbbVie Inc." },
+  { code: "T", name: "AT&T Inc." },
+  { code: "VZ", name: "Verizon Communications" },
+  { code: "ORCL", name: "Oracle Corporation" },
+  { code: "COST", name: "Costco Wholesale Corp." },
+  { code: "AVGO", name: "Broadcom Inc." },
+  { code: "TXN", name: "Texas Instruments" },
+  { code: "QCOM", name: "Qualcomm Inc." },
+  { code: "UNH", name: "UnitedHealth Group" },
+  { code: "LLY", name: "Eli Lilly and Company" },
+  { code: "BA", name: "The Boeing Company" },
+  { code: "CAT", name: "Caterpillar Inc." },
+  { code: "GS", name: "Goldman Sachs Group" },
+  { code: "PYPL", name: "PayPal Holdings Inc." },
+  { code: "UBER", name: "Uber Technologies" },
+  { code: "SQ", name: "Block Inc." },
+  { code: "COIN", name: "Coinbase Global Inc." },
+  { code: "PLTR", name: "Palantir Technologies" },
+  { code: "SNOW", name: "Snowflake Inc." },
+  { code: "SHOP", name: "Shopify Inc." },
+  { code: "SPOT", name: "Spotify Technology" },
+  { code: "ZM", name: "Zoom Video Communications" },
+  { code: "ROKU", name: "Roku Inc." },
+];
+
 function searchLocalJPStocks(query: string): { symbol: string; name: string }[] {
   const q = query.toLowerCase();
   return JP_STOCKS
     .filter((s) => s.code.includes(query) || s.name.toLowerCase().includes(q))
+    .slice(0, 20)
+    .map((s) => ({ symbol: s.code, name: s.name }));
+}
+
+function searchLocalUSStocks(query: string): { symbol: string; name: string }[] {
+  const q = query.toLowerCase();
+  return US_STOCKS
+    .filter((s) => s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
     .slice(0, 20)
     .map((s) => ({ symbol: s.code, name: s.name }));
 }

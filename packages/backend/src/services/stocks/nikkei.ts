@@ -92,18 +92,23 @@ export async function getCandles(code: string, days: number = 90): Promise<Nikke
     volumeMap.set(ts, vol);
   }
 
-  const candles: NikkeiCandle[] = ohlcData.map(([ts, open, high, low, close]) => {
-    const d = new Date(ts);
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    return {
-      date,
-      open,
-      high,
-      low,
-      close,
-      volume: volumeMap.get(ts) || 0,
-    };
-  });
+  const candles: NikkeiCandle[] = ohlcData
+    .filter(([, open, , , close]) => open > 0 && close > 0)
+    .map(([ts, open, high, low, close]) => {
+      // 日経タイムスタンプはJST午前0時 = UTC 15:00前日
+      // JST (UTC+9) で日付を計算
+      const jstMs = ts + 9 * 60 * 60 * 1000;
+      const d = new Date(jstMs);
+      const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      return {
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume: volumeMap.get(ts) || 0,
+      };
+    });
 
   cache.set(cacheKey, { data: candles, expires: Date.now() + CACHE_TTL });
   return candles;
