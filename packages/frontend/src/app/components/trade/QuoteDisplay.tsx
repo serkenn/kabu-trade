@@ -62,8 +62,8 @@ export default function QuoteDisplay({ quote, loading }: Props) {
   const currency = isJP ? "¥" : "$";
 
   return (
-    <div className="bg-gray-900 border-b border-gray-800 px-2 md:px-4 py-1.5 md:py-2 shrink-0 overflow-x-auto">
-      <div className="flex items-center gap-2 md:gap-6 flex-wrap md:flex-nowrap">
+    <div className="bg-gray-900 border-b border-gray-800 px-2 md:px-4 py-1.5 md:py-2 shrink-0 overflow-hidden">
+      <div className="flex items-center gap-2 md:gap-4 min-w-0">
         {/* Symbol + name */}
         <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
           <span className="text-sm md:text-lg font-bold font-mono text-white">{quote.symbol}</span>
@@ -101,45 +101,45 @@ export default function QuoteDisplay({ quote, loading }: Props) {
           )}
         </div>
 
-        {/* OHLC bar - hidden on very small screens */}
-        <div className="hidden sm:flex items-center gap-2 md:gap-4 text-[10px] md:text-xs shrink-0">
-          <div>
+        {/* OHLC bar */}
+        <div className="hidden sm:flex items-center gap-2 lg:gap-3 text-[10px] md:text-xs min-w-0">
+          <div className="shrink-0">
             <span className="text-gray-500">始 </span>
             <span className="font-mono text-gray-300">{currency}{quote.open.toLocaleString()}</span>
           </div>
-          <div>
+          <div className="shrink-0">
             <span className="text-gray-500">高 </span>
             <span className="font-mono text-red-400">{currency}{quote.high.toLocaleString()}</span>
           </div>
-          <div>
+          <div className="shrink-0">
             <span className="text-gray-500">安 </span>
             <span className="font-mono text-green-400">{currency}{quote.low.toLocaleString()}</span>
           </div>
-          <div className="hidden md:block">
-            <span className="text-gray-500">前日終値 </span>
+          <div className="hidden lg:block shrink-0">
+            <span className="text-gray-500">前 </span>
             <span className="font-mono text-gray-300">{currency}{quote.previousClose.toLocaleString()}</span>
           </div>
           {quote.volume && (
-            <div className="hidden md:block">
+            <div className="hidden xl:block shrink-0">
               <span className="text-gray-500">出来高 </span>
               <span className="font-mono text-gray-300">{quote.volume.toLocaleString()}</span>
             </div>
           )}
           {isJP && upperLimit && lowerLimit && (
-            <div className="hidden sm:flex items-center gap-2">
-              <div>
+            <>
+              <div className="shrink-0">
                 <span className="text-gray-500">S高 </span>
                 <span className={`font-mono ${isAtUpperLimit ? "text-red-400 font-bold" : "text-gray-400"}`}>
                   ¥{upperLimit.toLocaleString()}
                 </span>
               </div>
-              <div>
+              <div className="shrink-0">
                 <span className="text-gray-500">S安 </span>
                 <span className={`font-mono ${isAtLowerLimit ? "text-green-400 font-bold" : "text-gray-400"}`}>
                   ¥{lowerLimit.toLocaleString()}
                 </span>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
