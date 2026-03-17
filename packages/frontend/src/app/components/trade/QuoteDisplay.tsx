@@ -2,6 +2,28 @@
 
 import type { StockQuote } from "@/types";
 
+/**
+ * 日本株の値幅制限テーブル (東証ルール)
+ */
+const JP_PRICE_LIMITS: [number, number][] = [
+  [100, 30], [200, 50], [500, 80], [700, 100], [1000, 150],
+  [1500, 300], [2000, 400], [3000, 500], [5000, 700], [7000, 1000],
+  [10000, 1500], [15000, 3000], [20000, 4000], [30000, 5000],
+  [50000, 7000], [70000, 10000], [100000, 15000], [150000, 30000],
+  [200000, 40000], [300000, 50000], [500000, 70000], [700000, 100000],
+  [1000000, 150000], [1500000, 300000], [2000000, 400000],
+  [3000000, 500000], [5000000, 700000], [7000000, 1000000],
+  [10000000, 1500000], [15000000, 3000000], [20000000, 4000000],
+  [30000000, 5000000], [50000000, 7000000], [Infinity, 10000000],
+];
+
+function getPriceLimit(previousClose: number): number {
+  for (const [threshold, limit] of JP_PRICE_LIMITS) {
+    if (previousClose < threshold) return limit;
+  }
+  return 10000000;
+}
+
 interface Props {
   quote: StockQuote | null;
   loading: boolean;
@@ -23,6 +45,14 @@ export default function QuoteDisplay({ quote, loading }: Props) {
 
   const isUp = quote.change >= 0;
   const isJP = quote.market === "JP";
+
+  // ストップ高/安の計算 (日本株のみ)
+  const priceLimit = isJP && quote.previousClose > 0 ? getPriceLimit(quote.previousClose) : null;
+  const upperLimit = priceLimit !== null ? quote.previousClose + priceLimit : null;
+  const lowerLimit = priceLimit !== null ? Math.max(1, quote.previousClose - priceLimit) : null;
+  const isAtUpperLimit = upperLimit !== null && quote.price >= upperLimit;
+  const isAtLowerLimit = lowerLimit !== null && quote.price <= lowerLimit;
+
   const colorClass = isJP
     ? isUp ? "text-red-400" : "text-green-400"
     : isUp ? "text-green-400" : "text-red-400";
@@ -59,6 +89,16 @@ export default function QuoteDisplay({ quote, loading }: Props) {
             {quote.change.toFixed(isJP ? 0 : 2)} ({isUp ? "+" : ""}
             {quote.changePercent.toFixed(2)}%)
           </span>
+          {isAtUpperLimit && (
+            <span className="text-[9px] md:text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white animate-pulse">
+              S高
+            </span>
+          )}
+          {isAtLowerLimit && (
+            <span className="text-[9px] md:text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-600 text-white animate-pulse">
+              S安
+            </span>
+          )}
         </div>
 
         {/* OHLC bar - hidden on very small screens */}
@@ -83,6 +123,22 @@ export default function QuoteDisplay({ quote, loading }: Props) {
             <div className="hidden md:block">
               <span className="text-gray-500">出来高 </span>
               <span className="font-mono text-gray-300">{quote.volume.toLocaleString()}</span>
+            </div>
+          )}
+          {isJP && upperLimit && lowerLimit && (
+            <div className="hidden sm:flex items-center gap-2">
+              <div>
+                <span className="text-gray-500">S高 </span>
+                <span className={`font-mono ${isAtUpperLimit ? "text-red-400 font-bold" : "text-gray-400"}`}>
+                  ¥{upperLimit.toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">S安 </span>
+                <span className={`font-mono ${isAtLowerLimit ? "text-green-400 font-bold" : "text-gray-400"}`}>
+                  ¥{lowerLimit.toLocaleString()}
+                </span>
+              </div>
             </div>
           )}
         </div>
