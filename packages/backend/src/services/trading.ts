@@ -115,6 +115,29 @@ interface PlaceOrderParams {
   price?: number;
 }
 
+interface ExecuteFxTradeParams {
+  userId: string;
+  fromCurrency: "JPY" | "USD";
+  toCurrency: "JPY" | "USD";
+  amount: number;
+}
+
+function getUsdJpyRate(): number {
+  const raw = process.env.FX_USDJPY_RATE;
+  const parsed = raw ? Number(raw) : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return 150;
+}
+
+function roundCurrency(amount: number, currency: "JPY" | "USD"): number {
+  if (currency === "JPY") return Math.round(amount);
+  return Math.round(amount * 100) / 100;
+}
+
+export function getFxRate() {
+  return { pair: "USD/JPY", rate: getUsdJpyRate() };
+}
+
 export async function placeOrder(params: PlaceOrderParams) {
   const { userId, symbol, market, side, type, tradeType, quantity, price } = params;
 
@@ -179,6 +202,70 @@ export async function placeOrder(params: PlaceOrderParams) {
   }
 
   return executeSpotOrder(user, params, executionPrice);
+}
+
+export async function executeFxTrade(params: ExecuteFxTradeParams) {
+  const { userId, fromCurrency, toCurrency, amount } = params;
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  if (!user.isActive) throw new Error("アカウントが無効です");
+
+  const rate = getUsdJpyRate();
+  const sourceAmount = roundCurrency(amount, fromCurrency);
+  const receiveAmount = fromCurrency === "JPY"
+    ? roundCurrency(sourceAmount / rate, "USD")
+    : roundCurrency(sourceAmount * rate, "JPY");
+
+  if (receiveAmount <= 0) {
+    throw new Error("受取金額が0になるため両替できません");
+  }
+
+  const sourceBalance = fromCurrency === "JPY" ? user.balance : user.balanceUsd;
+  if (sourceBalance < sourceAmount) {
+    throw new Error(`${fromCurrency}残高が不足しています`);
+  }
+
+  const sourceField = fromCurrency === "JPY" ? "balance" : "balanceUsd";
+  const destinationField = toCurrency === "JPY" ? "balance" : "balanceUsd";
+  const tradeLabel = `${fromCurrency}→${toCurrency}`;
+  const receiveDisplay = toCurrency === "JPY" ? `¥${receiveAmount.toLocaleString()}` : `$${receiveAmount.toLocaleString()}`;
+
+  return prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        [sourceField]: { decrement: sourceAmount },
+        [destinationField]: { increment: receiveAmount },
+      },
+    });
+
+    await tx.transaction.create({
+      data: {
+        userId,
+        type: "FX",
+        amount: -sourceAmount,
+        currency: fromCurrency,
+        description: `為替両替 ${tradeLabel} 約定 (レート: ${rate.toLocaleString()} / 受取: ${receiveDisplay})`,
+      },
+    });
+
+    await tx.transaction.create({
+      data: {
+        userId,
+        type: "FX",
+        amount: receiveAmount,
+        currency: toCurrency,
+        description: `為替両替 ${tradeLabel} 入金 (レート: ${rate.toLocaleString()} / 受取: ${receiveDisplay})`,
+      },
+    });
+
+    return {
+      rate,
+      fromCurrency,
+      toCurrency,
+      sourceAmount,
+      receiveAmount,
+    };
+  });
 }
 
 async function executeSpotOrder(

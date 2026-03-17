@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const userNav = [
   { href: "/trade", label: "取引", icon: "📊" },
+  { href: "/fx", label: "為替", icon: "💱" },
   { href: "/portfolio", label: "ポートフォリオ", icon: "💼" },
   { href: "/margin", label: "信用取引", icon: "📈" },
   { href: "/rankings", label: "ランキング", icon: "🏆" },

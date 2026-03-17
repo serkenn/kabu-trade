@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import StockSearch from "@/app/components/trade/StockSearch";
 import QuoteDisplay from "@/app/components/trade/QuoteDisplay";
 import OrderForm from "@/app/components/trade/OrderForm";
+import FxForm from "@/app/components/trade/FxForm";
 import PriceChart from "@/app/components/charts/PriceChart";
 import MarketClock from "@/app/components/trade/MarketClock";
 import Watchlist from "@/app/components/trade/Watchlist";
@@ -168,6 +169,11 @@ export default function TradePage() {
           mobileTab === "chart" ? "hidden md:flex" : ""
         }`}>
           <div className={mobileTab === "watchlist" ? "hidden md:block" : ""}>
+            <FxForm
+              balanceJpy={user?.balance || 0}
+              balanceUsd={user?.balanceUsd || 0}
+              onTradeComplete={handleOrderPlaced}
+            />
             <OrderForm quote={quote} onOrderPlaced={handleOrderPlaced} />
           </div>
           <div className="flex-1" />

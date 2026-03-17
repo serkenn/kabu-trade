@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { prisma } from "@kabu-trade/shared";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
-import { placeOrder } from "../services/trading.js";
-import { orderSchema } from "../lib/validation.js";
+import { executeFxTrade, getFxRate, placeOrder } from "../services/trading.js";
+import { getUsdJpyCandles, getUsdJpyQuote } from "../services/fx.js";
+import { fxTradeSchema, orderSchema } from "../lib/validation.js";
 import { tradeLimiter } from "../middleware/security.js";
 import { audit, getClientIp } from "../lib/security.js";
 
@@ -39,6 +40,66 @@ tradeRouter.post("/order", tradeLimiter, async (req: AuthRequest, res) => {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "注文に失敗しました";
     res.status(400).json({ error: message });
+  }
+});
+
+tradeRouter.post("/fx", tradeLimiter, async (req: AuthRequest, res) => {
+  try {
+    const parsed = fxTradeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0].message });
+    }
+
+    const result = await executeFxTrade({
+      userId: req.user!.id,
+      fromCurrency: parsed.data.fromCurrency,
+      toCurrency: parsed.data.toCurrency,
+      amount: parsed.data.amount,
+    });
+
+    const ip = getClientIp(req);
+    await audit(
+      req.user!.id,
+      "FX",
+      `user:${req.user!.id}`,
+      `${result.fromCurrency} ${result.sourceAmount} -> ${result.toCurrency} ${result.receiveAmount} @ ${result.rate}`,
+      ip,
+      req.headers["user-agent"] || ""
+    );
+
+    res.json(result);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "為替取引に失敗しました";
+    res.status(400).json({ error: message });
+  }
+});
+
+tradeRouter.get("/fx-rate", async (_req, res) => {
+  try {
+    const liveQuote = await getUsdJpyQuote().catch(() => null);
+    if (liveQuote) {
+      return res.json(liveQuote);
+    }
+    res.json({
+      ...getFxRate(),
+      source: "config",
+      previousClose: getFxRate().rate,
+      change: 0,
+      changePercent: 0,
+      timestamp: Date.now(),
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Error" });
+  }
+});
+
+tradeRouter.get("/fx-candles", async (req: AuthRequest, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt((req.query.days as string) || "90"), 7), 365);
+    const result = await getUsdJpyCandles(days);
+    res.json(result);
+  } catch (error: unknown) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Error" });
   }
 });
 

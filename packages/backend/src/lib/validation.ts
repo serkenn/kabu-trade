@@ -24,6 +24,15 @@ export const orderSchema = z.object({
   { message: "指値注文には価格が必要です", path: ["price"] }
 );
 
+export const fxTradeSchema = z.object({
+  fromCurrency: z.enum(["JPY", "USD"]),
+  toCurrency: z.enum(["JPY", "USD"]),
+  amount: z.number().positive("金額は0より大きくしてください").max(999999999999),
+}).refine(
+  (data) => data.fromCurrency !== data.toCurrency,
+  { message: "異なる通貨を選択してください", path: ["toCurrency"] }
+);
+
 export const apiKeyCreateSchema = z.object({
   name: z.string().min(1).max(50).transform((v) => v.trim()),
   permissions: z.array(z.enum(["read", "trade", "margin", "*"])).min(1).max(4),

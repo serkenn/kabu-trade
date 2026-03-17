@@ -163,8 +163,9 @@ export async function getIntradayCandles(
   for (const tick of ticks) {
     const bucket = Math.floor(tick.ts / intervalMs) * intervalMs;
     if (bucket !== bucketStart) {
-      // lightweight-charts の time は UTC seconds
-      candles.push({ time: Math.floor(bucketStart / 1000), open, high, low, close, volume: 0 });
+      // lightweight-charts はUTC表示のため、JST(+9h)オフセットを加えてJSTとして表示させる
+      const JST_OFFSET = 9 * 60 * 60;
+      candles.push({ time: Math.floor(bucketStart / 1000) + JST_OFFSET, open, high, low, close, volume: 0 });
       bucketStart = bucket;
       open = tick.price;
       high = tick.price;
@@ -175,7 +176,8 @@ export async function getIntradayCandles(
     close = tick.price;
   }
   // Last bucket
-  candles.push({ time: Math.floor(bucketStart / 1000), open, high, low, close, volume: 0 });
+  const JST_OFFSET = 9 * 60 * 60;
+  candles.push({ time: Math.floor(bucketStart / 1000) + JST_OFFSET, open, high, low, close, volume: 0 });
 
   cache.set(cacheKey, { data: candles, expires: Date.now() + CACHE_TTL });
   return candles;
