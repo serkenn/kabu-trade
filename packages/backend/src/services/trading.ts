@@ -81,6 +81,29 @@ function checkPriceLimits(
   return { blocked: false };
 }
 
+/**
+ * 約定時スリッページを計算する
+ * ディレイ価格でのカンニングを防ぐため、成行注文に±0.05〜0.5%のランダム変動を加える
+ * - 買い注文: 上方向に滑りやすい (実際の市場と同様)
+ * - 売り注文: 下方向に滑りやすい
+ */
+function applySlippage(price: number, side: OrderSide, market: Market): number {
+  // スリッページ率: 0.05% 〜 0.5% (対数正規分布的な偏り)
+  const baseRate = 0.0005 + Math.random() * 0.0045; // 0.05% 〜 0.5%
+  // 70%の確率で不利な方向、30%で有利な方向
+  const direction = Math.random() < 0.7
+    ? (side === "BUY" ? 1 : -1)   // 不利 (買いは上、売りは下)
+    : (side === "BUY" ? -1 : 1);  // 有利
+
+  const slippedPrice = price * (1 + direction * baseRate);
+
+  // 日本株は整数、米国株は小数2桁
+  if (market === "JP") {
+    return Math.round(slippedPrice);
+  }
+  return Math.round(slippedPrice * 100) / 100;
+}
+
 interface PlaceOrderParams {
   userId: string;
   symbol: string;
@@ -106,7 +129,11 @@ export async function placeOrder(params: PlaceOrderParams) {
     throw new Error(limitCheck.reason!);
   }
 
-  const executionPrice = type === "MARKET" ? quote.price : (price || quote.price);
+  // 成行注文: スリッページを適用してカンニング防止
+  // 指値注文: ユーザー指定価格を使用
+  const executionPrice = type === "MARKET"
+    ? applySlippage(quote.price, side, market)
+    : (price || quote.price);
 
   if (type === "LIMIT") {
     const canExecute =
@@ -124,10 +151,10 @@ export async function placeOrder(params: PlaceOrderParams) {
   }
 
   if (tradeType === "MARGIN") {
-    return executeMarginOrder(user, params, quote.price);
+    return executeMarginOrder(user, params, executionPrice);
   }
 
-  return executeSpotOrder(user, params, quote.price);
+  return executeSpotOrder(user, params, executionPrice);
 }
 
 async function executeSpotOrder(
