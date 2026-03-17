@@ -12,6 +12,7 @@ const userNav = [
   { href: "/rankings", label: "ランキング", icon: "🏆" },
   { href: "/history", label: "履歴", icon: "📋" },
   { href: "/apikeys", label: "API", icon: "🔑" },
+  { href: "/help", label: "ヘルプ", icon: "❓" },
 ];
 
 export default function Sidebar() {
