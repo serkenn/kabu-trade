@@ -194,7 +194,7 @@ GET /api/v1/quotes?symbols=AAPL,MSFT,GOOG&market=US
 }
 ```
 
-#### ローソク足データ取得
+#### ローソク足データ取得 (日足)
 ```
 GET /api/v1/candles?symbol=AAPL&market=US&days=90
 ```
@@ -213,7 +213,34 @@ GET /api/v1/candles?symbol=AAPL&market=US&days=90
   "market": "US",
   "days": 90,
   "candles": [
-    { "time": 1707350400, "open": 182.0, "high": 185.5, "low": 181.2, "close": 184.8, "volume": 52300000 },
+    { "time": "2026-02-07", "open": 182.0, "high": 185.5, "low": 181.2, "close": 184.8, "volume": 52300000 },
+    ...
+  ]
+}
+```
+
+#### ローソク足データ取得 (日中足)
+```
+GET /api/v1/candles?symbol=7203&market=JP&interval=5m
+```
+**パーミッション:** `read`
+
+| パラメータ | 必須 | 説明 |
+|---|---|---|
+| `symbol` | Yes | 銘柄コード |
+| `market` | No | `JP` or `US` (default: `JP`) |
+| `interval` | Yes | 時間足: `1m`, `5m`, `10m`, `15m`, `30m`, `1h`, `2h`, `4h` |
+
+> 日中足は現在 JP (日本株) のみ対応。Nikkei Smart Chart から1分足データを取得し、指定間隔に集約します。
+
+**Response:**
+```json
+{
+  "symbol": "7203",
+  "market": "JP",
+  "interval": "5m",
+  "candles": [
+    { "time": 1710486300, "open": 2580, "high": 2585, "low": 2575, "close": 2582 },
     ...
   ]
 }

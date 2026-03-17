@@ -122,8 +122,8 @@ graph LR
 | **チャート** | Lightweight Charts | 4.2 |
 | **状態管理** | Zustand | 5.0 |
 | **セキュリティ** | Helmet + express-rate-limit | - |
-| **日本株データ** | J-Quants API | v2 |
-| **米国株データ** | Finnhub API | v1 |
+| **日本株データ** | Nikkei Smart Chart (スクレイピング) + J-Quants API | v2 |
+| **米国株データ** | Finnhub API + Stooq CSV | v1 |
 | **外部認証** | evex-accounts (OAuth 2.0 + PKCE) | - |
 | **インフラ** | Docker Compose + Cloudflare Tunnel | - |
 
@@ -140,15 +140,20 @@ graph LR
 | ポートフォリオ管理 | 保有銘柄・平均取得単価・損益の確認 |
 | 注文履歴 | 全注文のステータス追跡 (PENDING / FILLED / CANCELLED) |
 | 複数通貨 | JPY / USD の残高管理 |
+| キーボードショートカット | B=買い, S=売り, M=成行/指値, T=現物/信用, Q=数量フォーカス |
+| 売り注文時の保有残高表示 | 売り注文画面で保有数量を表示、全数量ボタンで即入力 |
+| ランキング | 総資産評価額・損益率ランキング (全ユーザー閲覧可) |
+| モバイル対応 | レスポンシブデザイン、ハンバーガーメニュー、タブ切り替え |
 
 ### 株価データ
 
 | 機能 | 説明 |
 |---|---|
-| リアルタイム株価 | J-Quants (日本株) / Finnhub (米国株) からリアルタイム取得 |
-| ローソク足チャート | 最大365日分の OHLCV データ |
-| 銘柄検索 | 銘柄コード・企業名で検索 |
+| リアルタイム株価 | Nikkei Smart Chart (日本株) / Finnhub (米国株) からリアルタイム取得 |
+| ローソク足チャート | 日足 (最大365日) + 日中足 (1分〜4時間) の OHLCV データ |
+| 銘柄検索 | 銘柄コード・企業名で検索。未登録コードもNikkeiから動的取得 |
 | 複数銘柄一括取得 | 最大20銘柄を一括でクォート取得 (Bot API) |
+| ウォッチリスト | お気に入り銘柄の登録・クイック切り替え |
 | 株価キャッシュ | JP: 30秒 / US: 10秒のキャッシュ |
 
 ### AI / Bot API
@@ -164,12 +169,15 @@ graph LR
 
 | 機能 | 説明 |
 |---|---|
-| ユーザー管理 | 検索・一覧表示 (ページネーション) |
+| ユーザー管理 | 検索・一覧表示 (ページネーション)、認証方式 (evex/local) 表示 |
 | 残高調整 | JPY / USD の残高を管理者が調整 (監査ログに記録) |
 | ロール変更 | USER ↔ ADMIN の切り替え (CRITICAL ログに記録) |
 | アカウント有効化/無効化 | ユーザーのアクセスを制御 |
 | 取引履歴閲覧 | 全ユーザーの取引を横断的に閲覧 |
 | 監査ログ | セキュリティイベントの閲覧 (重大度・操作種別フィルタ) |
+| ランキング | 全ユーザーの総資産・損益ランキング (メール・ロール情報付き) |
+| ポートフォリオ閲覧 | 各ユーザーの保有銘柄を現在価格・含み損益付きで閲覧 |
+| 認証情報 | evex-accounts 認証ユーザーの Discord ID・ロール表示 |
 
 ### セキュリティ
 
@@ -206,6 +214,9 @@ erDiagram
         string email UK
         string name
         string passwordHash
+        string authProvider "local / evex"
+        string discordId "Discord ID (evex)"
+        string[] discordRoles "Discord ロール (evex)"
         float balance "JPY残高"
         float balanceUsd "USD残高"
         float marginRate "証拠金率 (default: 3.0)"
@@ -344,13 +355,15 @@ erDiagram
 |---|---|---|
 | `GET` | `/api/stocks/quote?symbol=7203&market=JP` | 株価取得 |
 | `GET` | `/api/stocks/search?q=toyota&market=JP` | 銘柄検索 (最大20件) |
-| `GET` | `/api/stocks/candles?symbol=AAPL&market=US&days=90` | ローソク足データ |
+| `GET` | `/api/stocks/candles?symbol=AAPL&market=US&days=90` | 日足ローソク足データ |
+| `GET` | `/api/stocks/candles?symbol=7203&market=JP&interval=5m` | 日中足ローソク足データ (1m/5m/10m/15m/30m/1h/2h/4h) |
 | `POST` | `/api/trade/order` | 注文発注 (30/min) |
 | `GET` | `/api/trade/orders?status=FILLED&limit=100` | 注文履歴 |
 | `GET` | `/api/trade/holdings` | 保有銘柄 |
 | `GET` | `/api/margin/positions?status=OPEN` | 信用ポジション |
 | `POST` | `/api/margin/close` | 信用ポジション決済 |
 | `GET` | `/api/account` | アカウント情報 |
+| `GET` | `/api/account/rankings` | ユーザーランキング (全認証ユーザー閲覧可) |
 
 ### APIキー管理 (Cookie 認証)
 
@@ -369,6 +382,8 @@ erDiagram
 | `GET` | `/api/admin/users/:id` | ユーザー詳細 (保有銘柄・注文・取引含む) |
 | `PATCH` | `/api/admin/users/:id` | ユーザー編集 (残高調整・ロール変更等) |
 | `GET` | `/api/admin/transactions?page=1&userId=...` | 全取引履歴 |
+| `GET` | `/api/admin/rankings` | ランキング (メール・ロール情報付き) |
+| `GET` | `/api/admin/users/:id/portfolio` | ユーザーポートフォリオ (現在価格付き) |
 | `GET` | `/api/admin/audit-logs?severity=...&action=...` | 監査ログ |
 
 ### Bot API (APIキー認証)
@@ -410,6 +425,7 @@ graph TD
         PORTFOLIO["/portfolio<br/>ポートフォリオ"]
         MARGIN["/margin<br/>信用取引"]
         HISTORY["/history<br/>注文履歴"]
+        RANKINGS["/rankings<br/>ランキング"]
         APIKEYS["/apikeys<br/>APIキー管理"]
     end
 
@@ -417,16 +433,18 @@ graph TD
     TRADE --- PORTFOLIO
     TRADE --- MARGIN
     TRADE --- HISTORY
+    TRADE --- RANKINGS
     TRADE --- APIKEYS
 ```
 
 | パス | 画面 | 主要コンポーネント |
 |---|---|---|
 | `/login` | ログイン | メール・パスワード入力 |
-| `/trade` | 取引 | `StockSearch`, `QuoteDisplay`, `OrderForm`, `PriceChart` |
-| `/portfolio` | ポートフォリオ | 保有銘柄一覧、評価額 |
+| `/trade` | 取引 | `StockSearch`, `QuoteDisplay`, `OrderForm`, `PriceChart`, `Watchlist` |
+| `/portfolio` | ポートフォリオ | 保有銘柄一覧、評価額、総資産 |
 | `/margin` | 信用取引 | 建玉一覧、決済ボタン |
 | `/history` | 注文履歴 | 注文一覧 (ステータスフィルタ) |
+| `/rankings` | ランキング | 総資産・損益額・損益率ランキング、トップ3カード |
 | `/apikeys` | APIキー管理 | キー作成・一覧・削除 |
 
 ### 管理画面 (Admin :3001)
@@ -441,21 +459,24 @@ graph TD
         USERS["/users<br/>ユーザー管理"]
         UDETAIL["/users/:id<br/>ユーザー詳細"]
         TRANS["/transactions<br/>取引履歴"]
+        ARANKING["/rankings<br/>ランキング"]
         SETTINGS["/settings<br/>設定・監査ログ"]
     end
 
     ALOGIN -->|ADMIN認証| USERS
     USERS --> UDETAIL
     USERS --- TRANS
+    USERS --- ARANKING
     USERS --- SETTINGS
 ```
 
 | パス | 画面 | 機能 |
 |---|---|---|
 | `/login` | 管理者ログイン | ADMIN ロール必須 |
-| `/users` | ユーザー一覧 | 検索・ページネーション |
-| `/users/:id` | ユーザー詳細 | 残高調整、ロール変更、有効化/無効化 |
+| `/users` | ユーザー一覧 | 検索・ページネーション・認証方式表示 |
+| `/users/:id` | ユーザー詳細 | 残高調整、ロール変更、有効化/無効化、認証情報・Discord情報 |
 | `/transactions` | 取引履歴 | 全ユーザーの取引を横断閲覧 |
+| `/rankings` | ランキング | 総資産・損益ランキング (メール・ロール付き) |
 | `/settings` | 設定 | 監査ログ閲覧 (重大度・操作フィルタ) |
 
 ### 主要コンポーネント
@@ -463,11 +484,12 @@ graph TD
 | コンポーネント | 場所 | 説明 |
 |---|---|---|
 | `AuthGuard` | `components/layout/` | 未認証ユーザーをログインにリダイレクト |
-| `Sidebar` | `components/layout/` | ナビゲーションサイドバー |
-| `StockSearch` | `components/trade/` | 銘柄コード検索 (デバウンス付き) |
+| `Sidebar` | `components/layout/` | ナビゲーション (デスクトップ: ホバー展開サイドバー / モバイル: ハンバーガーメニュー) |
+| `StockSearch` | `components/trade/` | 銘柄コード検索 (デバウンス付き、未登録コード動的取得対応) |
 | `QuoteDisplay` | `components/trade/` | リアルタイム株価表示 |
-| `OrderForm` | `components/trade/` | 注文フォーム (成行/指値/現物/信用) |
-| `PriceChart` | `components/charts/` | Lightweight Charts によるローソク足チャート |
+| `OrderForm` | `components/trade/` | 注文フォーム (成行/指値/現物/信用、キーボードショートカット対応) |
+| `PriceChart` | `components/charts/` | Lightweight Charts によるローソク足チャート (日足+日中足、描画ツール) |
+| `Watchlist` | `components/trade/` | お気に入り銘柄リスト |
 
 ---
 

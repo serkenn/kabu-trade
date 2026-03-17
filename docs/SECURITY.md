@@ -139,9 +139,9 @@ sequenceDiagram
     BE->>EV: POST /api/oauth/token<br/>(code + code_verifier)
     EV-->>BE: access_token (evex_at_...)
     BE->>EV: GET /api/oauth/userinfo<br/>(Bearer access_token)
-    EV-->>BE: {sub, email, name, ...}
+    EV-->>BE: {sub, email, name,<br/>discord_id, discord_roles}
 
-    BE->>DB: ユーザー検索/作成<br/>(externalId = sub)
+    BE->>DB: ユーザー検索/作成<br/>(externalId = sub)<br/>authProvider, discordId, discordRoles 保存
     BE->>DB: セッション作成
     BE->>DB: 監査ログ (LOGIN, evex-oauth)
     BE-->>U: Set-Cookie: token=<jwt><br/>302 Redirect → /trade
@@ -163,6 +163,9 @@ sequenceDiagram
 | `openid` | ユーザーID (sub) の取得 |
 | `profile` | ユーザー名・アイコンの取得 |
 | `email` | メールアドレスの取得 |
+| `offline_access` | リフレッシュトークンの取得 |
+| `discord_id` | Discord ユーザーIDの取得 |
+| `discord_roles` | Discord サーバーロールの取得 |
 
 #### トークン仕様
 
@@ -191,6 +194,17 @@ OAuth ログイン時のローカルユーザー紐付けロジック:
 2. 見つからない場合、`email` で既存ユーザーを検索 → `externalId` を紐付け
 3. どちらも見つからない場合、新規ユーザーを自動作成 (初期残高付与)
 4. 既存ユーザーの名前・メールが変更されていれば自動更新
+
+ログイン時に以下の情報がユーザーレコードに保存されます:
+
+| フィールド | 説明 |
+|---|---|
+| `authProvider` | 認証方式 (`local` / `evex`) |
+| `externalId` | evex-accounts の `sub` クレーム |
+| `discordId` | Discord ユーザーID (evex-accounts から取得) |
+| `discordRoles` | Discord サーバーロール一覧 (evex-accounts から取得) |
+
+管理画面のユーザー一覧・詳細画面から認証方式と Discord 情報を確認できます。
 
 ### 認証方式の比較
 
