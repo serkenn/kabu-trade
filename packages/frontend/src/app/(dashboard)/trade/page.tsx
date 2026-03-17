@@ -52,7 +52,7 @@ export default function TradePage() {
   return (
     <div className="h-full flex flex-col gap-0">
       {/* Top toolbar */}
-      <div className="flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2 bg-gray-900 border-b border-gray-800 shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2 bg-gray-900 border-b border-gray-800 shrink-0" style={{ overflowX: "clip" }}>
         {/* Market toggle */}
         <div className="flex bg-gray-800 rounded overflow-hidden shrink-0">
           <button
@@ -74,7 +74,7 @@ export default function TradePage() {
         </div>
 
         {/* Search */}
-        <div className="w-40 md:w-64 shrink-0">
+        <div className="w-40 md:w-64 shrink-0 relative z-50">
           <StockSearch market={market} onSelect={(s, name) => loadQuote(s, undefined, name)} />
         </div>
 
