@@ -63,11 +63,11 @@ export default function RankingsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">ランキング</h1>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">並び替え:</span>
+    <div className="space-y-4 md:space-y-6 p-3 md:p-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-xl md:text-2xl font-bold">ランキング</h1>
+        <div className="flex items-center gap-1.5 md:gap-2">
+          <span className="text-xs text-gray-500 hidden md:inline">並び替え:</span>
           {(
             [
               { key: "totalAssetJpy" as SortKey, label: "総資産" },
@@ -130,8 +130,36 @@ export default function RankingsPage() {
         ))}
       </div>
 
-      {/* Full ranking table */}
-      <div className="card overflow-x-auto">
+      {/* Full ranking - mobile: cards, desktop: table */}
+      {/* Mobile card list */}
+      <div className="md:hidden space-y-2">
+        {sorted.map((r, i) => (
+          <div
+            key={r.id}
+            className={`card flex items-center gap-3 ${r.id === user?.id ? "ring-1 ring-brand-500/50" : ""}`}
+          >
+            <span className={`text-lg font-black w-8 text-center ${getMedalText(i)}`}>{i + 1}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">
+                {r.name}
+                {r.id === user?.id && <span className="text-brand-400 text-[10px] ml-1">(You)</span>}
+              </p>
+              <p className="text-xs text-gray-400 font-mono">{formatJpy(r.totalAssetJpy)}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={`text-xs font-mono font-bold ${r.totalPnlJpy >= 0 ? "text-red-400" : "text-green-400"}`}>
+                {r.totalPnlJpy >= 0 ? "+" : ""}{formatJpy(r.totalPnlJpy)}
+              </p>
+              <p className={`text-[10px] font-mono ${r.pnlRateJpy >= 0 ? "text-red-400" : "text-green-400"}`}>
+                {formatRate(r.pnlRateJpy)}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block card overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-800">

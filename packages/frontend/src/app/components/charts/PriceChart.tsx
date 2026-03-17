@@ -329,13 +329,13 @@ export default function PriceChart({ symbol, market }: Props) {
   return (
     <div className="h-full flex flex-col bg-[#0a0e17] relative">
       {/* Toolbar overlay */}
-      <div className="absolute top-2 left-3 z-10 flex gap-1 items-center">
+      <div className="absolute top-1 md:top-2 left-1 md:left-3 z-10 flex gap-0.5 md:gap-1 items-center flex-wrap max-w-[calc(100%-8px)]">
         {/* Intraday buttons (JP only) */}
         {intradayPeriods.map((p) => (
           <button
             key={p.iv}
             onClick={() => { setInterval(p.iv); }}
-            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+            className={`px-1.5 md:px-2 py-1 md:py-0.5 rounded text-[9px] md:text-[10px] font-bold transition-colors ${
               interval === p.iv
                 ? "bg-brand-600 text-white"
                 : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-gray-200"
@@ -345,14 +345,14 @@ export default function PriceChart({ symbol, market }: Props) {
           </button>
         ))}
 
-        {intradayPeriods.length > 0 && <div className="w-px h-4 bg-gray-700 mx-1" />}
+        {intradayPeriods.length > 0 && <div className="w-px h-4 bg-gray-700 mx-0.5 md:mx-1" />}
 
         {/* Daily period buttons */}
         {dailyPeriods.map((p) => (
           <button
             key={p.value}
             onClick={() => { setInterval(null); setDays(p.value); }}
-            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+            className={`px-1.5 md:px-2 py-1 md:py-0.5 rounded text-[9px] md:text-[10px] font-bold transition-colors ${
               interval === null && days === p.value
                 ? "bg-brand-600 text-white"
                 : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-gray-200"
@@ -362,15 +362,15 @@ export default function PriceChart({ symbol, market }: Props) {
           </button>
         ))}
 
-        <div className="w-px h-4 bg-gray-700 mx-1" />
+        <div className="w-px h-4 bg-gray-700 mx-0.5 md:mx-1 hidden md:block" />
 
-        {/* Drawing tools */}
+        {/* Drawing tools - desktop only */}
         {tools.map((t) => (
           <button
             key={t.id}
             onClick={() => setDrawingTool(drawingTool === t.id ? "none" : t.id)}
             title={t.label}
-            className={`px-1.5 py-0.5 rounded text-[11px] font-mono transition-colors ${
+            className={`hidden md:inline-block px-1.5 py-0.5 rounded text-[11px] font-mono transition-colors ${
               drawingTool === t.id
                 ? "bg-yellow-600 text-white"
                 : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-gray-200"
@@ -384,7 +384,7 @@ export default function PriceChart({ symbol, market }: Props) {
           <button
             onClick={clearDrawings}
             title="描画をクリア"
-            className="px-1.5 py-0.5 rounded text-[10px] bg-gray-800/80 text-red-400 hover:bg-red-600/30 transition-colors"
+            className="hidden md:inline-block px-1.5 py-0.5 rounded text-[10px] bg-gray-800/80 text-red-400 hover:bg-red-600/30 transition-colors"
           >
             消去
           </button>

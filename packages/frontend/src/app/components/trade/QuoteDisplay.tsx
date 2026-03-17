@@ -10,7 +10,7 @@ interface Props {
 export default function QuoteDisplay({ quote, loading }: Props) {
   if (loading) {
     return (
-      <div className="h-12 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-4">
+      <div className="h-10 md:h-12 bg-gray-900 border-b border-gray-800 flex items-center px-3 md:px-4 gap-4">
         <div className="h-4 bg-gray-800 rounded w-20 animate-pulse" />
         <div className="h-5 bg-gray-800 rounded w-24 animate-pulse" />
       </div>
@@ -18,7 +18,7 @@ export default function QuoteDisplay({ quote, loading }: Props) {
   }
 
   if (!quote) {
-    return <div className="h-12 bg-gray-900 border-b border-gray-800" />;
+    return <div className="h-10 md:h-12 bg-gray-900 border-b border-gray-800" />;
   }
 
   const isUp = quote.change >= 0;
@@ -32,58 +32,60 @@ export default function QuoteDisplay({ quote, loading }: Props) {
   const currency = isJP ? "¥" : "$";
 
   return (
-    <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 flex items-center gap-6 shrink-0 overflow-x-auto">
-      {/* Symbol + name */}
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-lg font-bold font-mono text-white">{quote.symbol}</span>
-        {quote.name && (
-          <span className="text-xs text-gray-400 max-w-[200px] truncate">{quote.name}</span>
-        )}
-        <span className="text-[10px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">
-          {isJP ? "東証" : "NASDAQ"}
-        </span>
-      </div>
+    <div className="bg-gray-900 border-b border-gray-800 px-2 md:px-4 py-1.5 md:py-2 shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-2 md:gap-6 flex-wrap md:flex-nowrap">
+        {/* Symbol + name */}
+        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+          <span className="text-sm md:text-lg font-bold font-mono text-white">{quote.symbol}</span>
+          {quote.name && (
+            <span className="text-[10px] md:text-xs text-gray-400 max-w-[120px] md:max-w-[200px] truncate">{quote.name}</span>
+          )}
+          <span className="text-[9px] md:text-[10px] bg-gray-800 text-gray-500 px-1 md:px-1.5 py-0.5 rounded">
+            {isJP ? "東証" : "NASDAQ"}
+          </span>
+        </div>
 
-      {/* Price + change */}
-      <div className="flex items-baseline gap-2 shrink-0">
-        <span className="text-xl font-bold font-mono text-white">
-          {currency}
-          {quote.price.toLocaleString(undefined, {
-            minimumFractionDigits: isJP ? 0 : 2,
-            maximumFractionDigits: isJP ? 0 : 2,
-          })}
-        </span>
-        <span className={`text-sm font-bold font-mono px-1.5 py-0.5 rounded ${colorClass} ${bgClass}`}>
-          {isUp ? "+" : ""}
-          {quote.change.toFixed(isJP ? 0 : 2)} ({isUp ? "+" : ""}
-          {quote.changePercent.toFixed(2)}%)
-        </span>
-      </div>
+        {/* Price + change */}
+        <div className="flex items-baseline gap-1.5 md:gap-2 shrink-0">
+          <span className="text-base md:text-xl font-bold font-mono text-white">
+            {currency}
+            {quote.price.toLocaleString(undefined, {
+              minimumFractionDigits: isJP ? 0 : 2,
+              maximumFractionDigits: isJP ? 0 : 2,
+            })}
+          </span>
+          <span className={`text-[10px] md:text-sm font-bold font-mono px-1 md:px-1.5 py-0.5 rounded ${colorClass} ${bgClass}`}>
+            {isUp ? "+" : ""}
+            {quote.change.toFixed(isJP ? 0 : 2)} ({isUp ? "+" : ""}
+            {quote.changePercent.toFixed(2)}%)
+          </span>
+        </div>
 
-      {/* OHLC bar */}
-      <div className="flex items-center gap-4 text-xs shrink-0">
-        <div>
-          <span className="text-gray-500">始値 </span>
-          <span className="font-mono text-gray-300">{currency}{quote.open.toLocaleString()}</span>
-        </div>
-        <div>
-          <span className="text-gray-500">高値 </span>
-          <span className="font-mono text-red-400">{currency}{quote.high.toLocaleString()}</span>
-        </div>
-        <div>
-          <span className="text-gray-500">安値 </span>
-          <span className="font-mono text-green-400">{currency}{quote.low.toLocaleString()}</span>
-        </div>
-        <div>
-          <span className="text-gray-500">前日終値 </span>
-          <span className="font-mono text-gray-300">{currency}{quote.previousClose.toLocaleString()}</span>
-        </div>
-        {quote.volume && (
+        {/* OHLC bar - hidden on very small screens */}
+        <div className="hidden sm:flex items-center gap-2 md:gap-4 text-[10px] md:text-xs shrink-0">
           <div>
-            <span className="text-gray-500">出来高 </span>
-            <span className="font-mono text-gray-300">{quote.volume.toLocaleString()}</span>
+            <span className="text-gray-500">始 </span>
+            <span className="font-mono text-gray-300">{currency}{quote.open.toLocaleString()}</span>
           </div>
-        )}
+          <div>
+            <span className="text-gray-500">高 </span>
+            <span className="font-mono text-red-400">{currency}{quote.high.toLocaleString()}</span>
+          </div>
+          <div>
+            <span className="text-gray-500">安 </span>
+            <span className="font-mono text-green-400">{currency}{quote.low.toLocaleString()}</span>
+          </div>
+          <div className="hidden md:block">
+            <span className="text-gray-500">前日終値 </span>
+            <span className="font-mono text-gray-300">{currency}{quote.previousClose.toLocaleString()}</span>
+          </div>
+          {quote.volume && (
+            <div className="hidden md:block">
+              <span className="text-gray-500">出来高 </span>
+              <span className="font-mono text-gray-300">{quote.volume.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

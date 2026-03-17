@@ -43,81 +43,102 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <h1 className="text-2xl font-bold">取引履歴</h1>
+    <div className="space-y-4 md:space-y-6 p-3 md:p-6">
+      <h1 className="text-xl md:text-2xl font-bold">取引履歴</h1>
 
       {orders.length === 0 ? (
-        <div className="card text-center py-12 text-gray-500">
+        <div className="card text-center py-8 md:py-12 text-gray-500 text-sm">
           取引履歴はありません
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className="table-header">日時</th>
-                <th className="table-header">銘柄</th>
-                <th className="table-header">売買</th>
-                <th className="table-header">種別</th>
-                <th className="table-header text-right">数量</th>
-                <th className="table-header text-right">約定価格</th>
-                <th className="table-header text-right">約定額</th>
-                <th className="table-header">状態</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr
-                  key={o.id}
-                  className="border-b border-gray-800/50 hover:bg-gray-800/50"
-                >
-                  <td className="table-cell text-xs text-gray-400">
-                    {new Date(o.createdAt).toLocaleString("ja-JP")}
-                  </td>
-                  <td className="table-cell font-mono font-bold text-brand-400">
-                    {o.symbol}
-                    <span className="text-xs text-gray-500 ml-1">
-                      {o.market === "JP" ? "JP" : "US"}
+        <>
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-2">
+            {orders.map((o) => {
+              const c = o.market === "JP" ? "¥" : "$";
+              return (
+                <div key={o.id} className="card">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-brand-400">{o.symbol}</span>
+                      <span className={`font-bold text-sm ${o.side === "BUY" ? "text-red-400" : "text-green-400"}`}>
+                        {o.side === "BUY" ? "買" : "売"}
+                      </span>
+                      <span className="text-[10px] bg-gray-800 px-1.5 py-0.5 rounded text-gray-400">
+                        {o.tradeType === "MARGIN" ? "信用" : "現物"}
+                      </span>
+                    </div>
+                    <span className={`text-xs font-bold ${statusColor(o.status)}`}>
+                      {statusLabel(o.status)}
                     </span>
-                  </td>
-                  <td className="table-cell">
-                    <span
-                      className={`font-bold ${
-                        o.side === "BUY" ? "text-red-400" : "text-green-400"
-                      }`}
-                    >
-                      {o.side === "BUY" ? "買" : "売"}
-                    </span>
-                  </td>
-                  <td className="table-cell text-xs">
-                    <span className="bg-gray-800 px-2 py-0.5 rounded">
-                      {o.tradeType === "MARGIN" ? "信用" : "現物"}
-                    </span>
-                    <span className="text-gray-500 ml-1">
-                      {o.type === "MARKET" ? "成行" : "指値"}
-                    </span>
-                  </td>
-                  <td className="table-cell text-right font-mono">
-                    {o.filledQty.toLocaleString()}/{o.quantity.toLocaleString()}
-                  </td>
-                  <td className="table-cell text-right font-mono">
-                    {o.filledPrice
-                      ? `${o.market === "JP" ? "¥" : "$"}${o.filledPrice.toLocaleString()}`
-                      : "-"}
-                  </td>
-                  <td className="table-cell text-right font-mono">
-                    {o.filledPrice && o.filledQty
-                      ? `${o.market === "JP" ? "¥" : "$"}${(o.filledPrice * o.filledQty).toLocaleString()}`
-                      : "-"}
-                  </td>
-                  <td className={`table-cell font-bold text-xs ${statusColor(o.status)}`}>
-                    {statusLabel(o.status)}
-                  </td>
+                  </div>
+                  <div className="flex items-end justify-between text-xs">
+                    <div className="text-gray-400">
+                      <p>{new Date(o.createdAt).toLocaleString("ja-JP")}</p>
+                      <p>{o.filledQty.toLocaleString()}/{o.quantity.toLocaleString()}株</p>
+                    </div>
+                    <div className="text-right font-mono">
+                      {o.filledPrice && (
+                        <>
+                          <p className="text-gray-300">@{c}{o.filledPrice.toLocaleString()}</p>
+                          <p className="font-bold">{c}{(o.filledPrice * o.filledQty).toLocaleString()}</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block card overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-800">
+                  <th className="table-header">日時</th>
+                  <th className="table-header">銘柄</th>
+                  <th className="table-header">売買</th>
+                  <th className="table-header">種別</th>
+                  <th className="table-header text-right">数量</th>
+                  <th className="table-header text-right">約定価格</th>
+                  <th className="table-header text-right">約定額</th>
+                  <th className="table-header">状態</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {orders.map((o) => (
+                  <tr key={o.id} className="border-b border-gray-800/50 hover:bg-gray-800/50">
+                    <td className="table-cell text-xs text-gray-400">
+                      {new Date(o.createdAt).toLocaleString("ja-JP")}
+                    </td>
+                    <td className="table-cell font-mono font-bold text-brand-400">
+                      {o.symbol}
+                      <span className="text-xs text-gray-500 ml-1">{o.market === "JP" ? "JP" : "US"}</span>
+                    </td>
+                    <td className="table-cell">
+                      <span className={`font-bold ${o.side === "BUY" ? "text-red-400" : "text-green-400"}`}>
+                        {o.side === "BUY" ? "買" : "売"}
+                      </span>
+                    </td>
+                    <td className="table-cell text-xs">
+                      <span className="bg-gray-800 px-2 py-0.5 rounded">{o.tradeType === "MARGIN" ? "信用" : "現物"}</span>
+                      <span className="text-gray-500 ml-1">{o.type === "MARKET" ? "成行" : "指値"}</span>
+                    </td>
+                    <td className="table-cell text-right font-mono">{o.filledQty.toLocaleString()}/{o.quantity.toLocaleString()}</td>
+                    <td className="table-cell text-right font-mono">
+                      {o.filledPrice ? `${o.market === "JP" ? "¥" : "$"}${o.filledPrice.toLocaleString()}` : "-"}
+                    </td>
+                    <td className="table-cell text-right font-mono">
+                      {o.filledPrice && o.filledQty ? `${o.market === "JP" ? "¥" : "$"}${(o.filledPrice * o.filledQty).toLocaleString()}` : "-"}
+                    </td>
+                    <td className={`table-cell font-bold text-xs ${statusColor(o.status)}`}>{statusLabel(o.status)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

@@ -61,7 +61,7 @@ export default function StockSearch({ market, onSelect }: Props) {
           </div>
         )}
       </div>
-      {results.length > 0 && (
+      {(results.length > 0 || (query.length >= 1 && !loading)) && (
         <div className="absolute z-50 w-80 mt-1 bg-gray-800 border border-gray-700 rounded shadow-xl max-h-60 overflow-y-auto">
           {results.map((r) => (
             <button
@@ -77,6 +77,25 @@ export default function StockSearch({ market, onSelect }: Props) {
               <span className="text-gray-400 truncate ml-3">{r.name}</span>
             </button>
           ))}
+          {results.length === 0 && query.length >= 1 && !loading && (
+            <div className="px-3 py-2 text-xs text-gray-500">
+              {/^\d{4}$/.test(query) || /^[A-Z]{1,5}$/.test(query.toUpperCase()) ? (
+                <button
+                  onClick={() => {
+                    onSelect(market === "JP" ? query : query.toUpperCase(), query);
+                    setQuery(market === "JP" ? query : query.toUpperCase());
+                    setResults([]);
+                  }}
+                  className="w-full text-left hover:bg-gray-700 px-2 py-1 rounded transition-colors"
+                >
+                  <span className="font-mono font-bold text-brand-400">{market === "JP" ? query : query.toUpperCase()}</span>
+                  <span className="text-gray-400 ml-2">をそのまま使用</span>
+                </button>
+              ) : (
+                "該当銘柄なし"
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

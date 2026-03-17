@@ -129,7 +129,24 @@ export async function searchSymbols(
   if (market === "US") {
     return searchLocalUSStocks(query);
   }
-  return searchLocalJPStocks(query);
+
+  const localResults = searchLocalJPStocks(query);
+
+  // 4桁の数字コードがローカルリストにない場合、日経から銘柄名を取得して追加
+  if (/^\d{4}$/.test(query)) {
+    const found = localResults.some((r) => r.symbol === query);
+    if (!found) {
+      try {
+        const q = await nikkei.getQuote(query);
+        localResults.unshift({ symbol: query, name: q.name || query });
+      } catch {
+        // 日経でも見つからなければコードだけ返す
+        localResults.unshift({ symbol: query, name: query });
+      }
+    }
+  }
+
+  return localResults;
 }
 
 // ==================== ローカル銘柄リスト ====================
@@ -238,6 +255,31 @@ const JP_STOCKS: Stock[] = [
   { code: "7182", name: "ゆうちょ銀行" },
   { code: "6753", name: "シャープ" },
   { code: "3086", name: "J.フロント リテイリング" },
+  { code: "6524", name: "湖北工業" },
+  { code: "6941", name: "山一電機" },
+  { code: "2802", name: "味の素" },
+  { code: "4385", name: "メルカリ" },
+  { code: "3923", name: "ラクス" },
+  { code: "4816", name: "東映アニメーション" },
+  { code: "7832", name: "バンダイナムコホールディングス" },
+  { code: "9766", name: "コナミグループ" },
+  { code: "3635", name: "コーエーテクモホールディングス" },
+  { code: "9697", name: "カプコン" },
+  { code: "7862", name: "トッパンホールディングス" },
+  { code: "2897", name: "日清食品ホールディングス" },
+  { code: "4523", name: "エーザイ" },
+  { code: "6857", name: "アドバンテスト" },
+  { code: "6532", name: "ベイカレント・コンサルティング" },
+  { code: "4478", name: "フリー" },
+  { code: "4776", name: "サイボウズ" },
+  { code: "3697", name: "SHIFT" },
+  { code: "4443", name: "Sansan" },
+  { code: "2371", name: "カカクコム" },
+  { code: "4565", name: "そーせいグループ" },
+  { code: "6035", name: "アイ・アールジャパンホールディングス" },
+  { code: "7545", name: "西松屋チェーン" },
+  { code: "3765", name: "ガンホー・オンライン・エンターテイメント" },
+  { code: "2413", name: "エムスリー" },
 ];
 
 const US_STOCKS: Stock[] = [

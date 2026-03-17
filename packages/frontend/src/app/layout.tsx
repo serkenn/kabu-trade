@@ -6,6 +6,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "KabuTrade - デモトレード",
   description: "日本株・米国株のデモトレードプラットフォーム",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 };
 
 export default function RootLayout({
