@@ -191,19 +191,39 @@ export async function getQuote(code: string): Promise<NikkeiQuote> {
   const prev = candles.length > 1 ? candles[candles.length - 2] : null;
   const prevClose = prev ? prev.close : latest.open;
 
+  // 日中足から最新価格を取得（日足は15分遅れのため）
+  let realtimePrice: number | null = null;
+  try {
+    const intraday = await getIntradayCandles(code, 1);
+    if (intraday.length > 0) {
+      realtimePrice = intraday[intraday.length - 1].close;
+    }
+  } catch { /* 日中足が取れない場合は日足を使う */ }
+
+  const price = realtimePrice ?? latest.close;
+  const open = realtimePrice
+    ? (candles.length > 0 ? latest.open : price)
+    : latest.open;
+  const high = realtimePrice
+    ? Math.max(latest.high, price)
+    : latest.high;
+  const low = realtimePrice
+    ? Math.min(latest.low, price)
+    : latest.low;
+
   let name = "";
   try { name = await getStockName(code); } catch { /* ignore */ }
 
   return {
-    price: latest.close,
-    open: latest.open,
-    high: latest.high,
-    low: latest.low,
+    price,
+    open,
+    high,
+    low,
     previousClose: prevClose,
-    change: latest.close - prevClose,
-    changePercent: ((latest.close - prevClose) / prevClose) * 100,
+    change: price - prevClose,
+    changePercent: ((price - prevClose) / prevClose) * 100,
     volume: latest.volume,
-    timestamp: typeof latest.time === "string" ? new Date(latest.time).getTime() : latest.time * 1000,
+    timestamp: Date.now(),
     name,
   };
 }

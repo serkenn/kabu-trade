@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import StockSearch from "@/app/components/trade/StockSearch";
 import QuoteDisplay from "@/app/components/trade/QuoteDisplay";
 import OrderForm from "@/app/components/trade/OrderForm";
@@ -43,6 +43,33 @@ export default function TradePage() {
     },
     [market]
   );
+
+  // 1分ごとに株価を自動更新
+  const selectedSymbolRef = useRef(selectedSymbol);
+  const marketRef = useRef(market);
+  const quoteRef = useRef(quote);
+  selectedSymbolRef.current = selectedSymbol;
+  marketRef.current = market;
+  quoteRef.current = quote;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const sym = selectedSymbolRef.current;
+      if (!sym) return;
+      const m = marketRef.current;
+      const name = quoteRef.current?.name;
+      fetch(`/api/stocks/quote?symbol=${sym}&market=${m}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((q) => {
+          if (q && selectedSymbolRef.current === sym) {
+            if (name) q.name = name;
+            setQuote(q);
+          }
+        })
+        .catch(() => {});
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleOrderPlaced = () => {
     fetchUser();
