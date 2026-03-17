@@ -29,6 +29,7 @@ adminRouter.get("/users", async (req: AuthRequest, res) => {
           id: true, email: true, name: true, role: true,
           balance: true, balanceUsd: true, marginRate: true,
           isActive: true, createdAt: true, lastLoginAt: true, failedLoginAttempts: true,
+          authProvider: true, externalId: true, discordId: true, discordRoles: true,
           _count: { select: { orders: true, holdings: true, marginPositions: true } },
         },
         orderBy: { createdAt: "desc" },

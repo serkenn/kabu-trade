@@ -36,6 +36,10 @@ interface UserDetail {
   balanceUsd: number;
   marginRate: number;
   isActive: boolean;
+  authProvider?: string;
+  externalId?: string | null;
+  discordId?: string | null;
+  discordRoles?: string[];
   holdings: HoldingDetail[];
   marginPositions: MarginDetail[];
   orders: Array<{
@@ -234,6 +238,53 @@ export default function AdminUserDetailPage() {
             キャンセル
           </button>
         )}
+      </div>
+
+      {/* 認証情報 */}
+      <div className="card">
+        <h2 className="font-bold text-lg mb-4">認証情報</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <label className="label">認証タイプ</label>
+            <p className="flex items-center gap-2">
+              {user.authProvider === "evex" || user.externalId ? (
+                <span className="text-sm px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 font-bold">
+                  evex-accounts
+                </span>
+              ) : (
+                <span className="text-sm px-2 py-0.5 rounded bg-gray-700 text-gray-300 font-bold">
+                  ローカル認証
+                </span>
+              )}
+            </p>
+          </div>
+          {(user.authProvider === "evex" || user.externalId) && (
+            <>
+              <div>
+                <label className="label">External ID</label>
+                <p className="text-xs font-mono text-gray-400 break-all">{user.externalId || "-"}</p>
+              </div>
+              <div>
+                <label className="label">Discord ID</label>
+                <p className="text-sm font-mono text-gray-300">{user.discordId || "-"}</p>
+              </div>
+              <div>
+                <label className="label">Discord Roles</label>
+                {user.discordRoles && user.discordRoles.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {user.discordRoles.map((role, i) => (
+                      <span key={i} className="text-xs px-2 py-0.5 rounded bg-indigo-600/20 text-indigo-400">
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">なし</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* 保有銘柄 */}

@@ -229,7 +229,13 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
       if (existingByEmail) {
         user = await prisma.user.update({
           where: { id: existingByEmail.id },
-          data: { externalId: evexUser.sub, name: evexUser.name || existingByEmail.name },
+          data: {
+            externalId: evexUser.sub,
+            name: evexUser.name || existingByEmail.name,
+            authProvider: "evex",
+            discordId: evexUser.discord_id || null,
+            discordRoles: evexUser.discord_roles || [],
+          },
         });
       } else {
         // 新規ユーザー作成
@@ -239,20 +245,24 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
             email: evexUser.email,
             name: evexUser.name || evexUser.email.split("@")[0],
             passwordHash: "evex-oauth",
+            authProvider: "evex",
+            discordId: evexUser.discord_id || null,
+            discordRoles: evexUser.discord_roles || [],
           },
         });
       }
     } else {
-      // ユーザー情報を更新 (名前・メール変更に追従)
-      if (user.email !== evexUser.email || user.name !== evexUser.name) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            email: evexUser.email,
-            ...(evexUser.name ? { name: evexUser.name } : {}),
-          },
-        });
-      }
+      // ユーザー情報を更新 (名前・メール・スコープ変更に追従)
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(evexUser.email !== user.email ? { email: evexUser.email } : {}),
+          ...(evexUser.name && evexUser.name !== user.name ? { name: evexUser.name } : {}),
+          authProvider: "evex",
+          discordId: evexUser.discord_id || null,
+          discordRoles: evexUser.discord_roles || [],
+        },
+      });
     }
 
     if (!user.isActive) {

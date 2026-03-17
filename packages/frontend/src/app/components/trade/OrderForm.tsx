@@ -1,7 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { StockQuote } from "@/types";
+
+interface Holding {
+  symbol: string;
+  market: string;
+  quantity: number;
+  avgCost: number;
+}
 
 interface Props {
   quote: StockQuote | null;
@@ -17,6 +24,29 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const quantityRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Fetch holdings for sell balance display
+  useEffect(() => {
+    fetch("/api/trade/holdings")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setHoldings(data); })
+      .catch(() => {});
+  }, []);
+
+  // Refresh holdings after order placed
+  const refreshHoldings = useCallback(() => {
+    fetch("/api/trade/holdings")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setHoldings(data); })
+      .catch(() => {});
+  }, []);
+
+  const currentHolding = quote
+    ? holdings.find((h) => h.symbol === quote.symbol && h.market === quote.market)
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,12 +85,61 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
       setQuantity("");
       setPrice("");
       onOrderPlaced();
+      refreshHoldings();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "注文に失敗しました");
     } finally {
       setLoading(false);
     }
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when typing in inputs (except our own)
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+        // Allow Enter to submit from our quantity/price inputs
+        if (e.key === "Enter" && formRef.current?.contains(target)) {
+          return; // Let form handle it
+        }
+        return;
+      }
+
+      switch (e.key) {
+        case "b":
+        case "B":
+          e.preventDefault();
+          setSide("BUY");
+          quantityRef.current?.focus();
+          break;
+        case "s":
+        case "S":
+          e.preventDefault();
+          setSide("SELL");
+          quantityRef.current?.focus();
+          break;
+        case "m":
+        case "M":
+          e.preventDefault();
+          setOrderType((prev) => prev === "MARKET" ? "LIMIT" : "MARKET");
+          break;
+        case "t":
+        case "T":
+          e.preventDefault();
+          setTradeType((prev) => prev === "SPOT" ? "MARGIN" : "SPOT");
+          break;
+        case "q":
+        case "Q":
+          e.preventDefault();
+          quantityRef.current?.focus();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const estimatedTotal =
     quote && quantity
@@ -70,8 +149,13 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
       : 0;
 
   return (
-    <form onSubmit={handleSubmit} className="p-3 space-y-3 text-sm">
-      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">注文</div>
+    <form ref={formRef} onSubmit={handleSubmit} className="p-3 space-y-3 text-sm">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">注文</div>
+        <div className="text-[9px] text-gray-600 hidden md:block" title="B=買い S=売り M=成行/指値 T=現物/信用 Q=数量">
+          B/S/M/T/Q
+        </div>
+      </div>
 
       {/* Buy / Sell */}
       <div className="grid grid-cols-2 gap-1">
@@ -84,7 +168,7 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
               : "bg-gray-800 text-gray-500 hover:bg-gray-700"
           }`}
         >
-          買い
+          買い <span className="hidden md:inline text-[9px] opacity-60">(B)</span>
         </button>
         <button
           type="button"
@@ -95,9 +179,35 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
               : "bg-gray-800 text-gray-500 hover:bg-gray-700"
           }`}
         >
-          売り
+          売り <span className="hidden md:inline text-[9px] opacity-60">(S)</span>
         </button>
       </div>
+
+      {/* Holdings balance for SELL */}
+      {side === "SELL" && quote && (
+        <div className="bg-gray-800/50 rounded px-2 py-1.5 flex justify-between items-center">
+          <span className="text-[10px] text-gray-500">保有残高</span>
+          <div className="text-right">
+            {currentHolding ? (
+              <div>
+                <span className="font-mono font-bold text-white text-sm">
+                  {currentHolding.quantity.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-gray-400 ml-1">株</span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity(String(currentHolding.quantity))}
+                  className="ml-2 text-[9px] text-brand-400 hover:text-brand-300 underline"
+                >
+                  全数量
+                </button>
+              </div>
+            ) : (
+              <span className="text-[10px] text-gray-600">保有なし</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Trade type + Order type */}
       <div className="flex gap-1">
@@ -154,6 +264,7 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
       <div>
         <label className="text-[10px] text-gray-500 mb-0.5 block">数量（株）</label>
         <input
+          ref={quantityRef}
           type="number"
           min="1"
           value={quantity}

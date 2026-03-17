@@ -13,6 +13,8 @@ interface AdminUser {
   marginRate: number;
   isActive: boolean;
   createdAt: string;
+  authProvider?: string;
+  externalId?: string | null;
   _count: { orders: number; holdings: number; marginPositions: number };
 }
 
@@ -67,6 +69,7 @@ export default function AdminUsersPage() {
             <thead>
               <tr className="border-b border-gray-800">
                 <th className="table-header">ユーザー</th>
+                <th className="table-header">認証</th>
                 <th className="table-header">ロール</th>
                 <th className="table-header text-right">残高 (JPY)</th>
                 <th className="table-header text-right">残高 (USD)</th>
@@ -86,6 +89,15 @@ export default function AdminUsersPage() {
                   <td className="table-cell">
                     <p className="font-medium">{u.name}</p>
                     <p className="text-xs text-gray-500">{u.email}</p>
+                  </td>
+                  <td className="table-cell">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      u.authProvider === "evex" || u.externalId
+                        ? "bg-blue-600/20 text-blue-400"
+                        : "bg-gray-700/50 text-gray-500"
+                    }`}>
+                      {u.authProvider === "evex" || u.externalId ? "evex" : "local"}
+                    </span>
                   </td>
                   <td className="table-cell">
                     <span
