@@ -2,6 +2,85 @@ import { prisma } from "@kabu-trade/shared";
 import { getQuote } from "./stocks/index.js";
 import type { Market, OrderSide, OrderType, TradeType } from "@prisma/client";
 
+/**
+ * 日本株の値幅制限テーブル (東証ルール)
+ * 前日終値の価格帯に応じた制限値幅
+ */
+const JP_PRICE_LIMITS: [number, number][] = [
+  [100, 30],
+  [200, 50],
+  [500, 80],
+  [700, 100],
+  [1000, 150],
+  [1500, 300],
+  [2000, 400],
+  [3000, 500],
+  [5000, 700],
+  [7000, 1000],
+  [10000, 1500],
+  [15000, 3000],
+  [20000, 4000],
+  [30000, 5000],
+  [50000, 7000],
+  [70000, 10000],
+  [100000, 15000],
+  [150000, 30000],
+  [200000, 40000],
+  [300000, 50000],
+  [500000, 70000],
+  [700000, 100000],
+  [1000000, 150000],
+  [1500000, 300000],
+  [2000000, 400000],
+  [3000000, 500000],
+  [5000000, 700000],
+  [7000000, 1000000],
+  [10000000, 1500000],
+  [15000000, 3000000],
+  [20000000, 4000000],
+  [30000000, 5000000],
+  [50000000, 7000000],
+  [Infinity, 10000000],
+];
+
+/** 前日終値に応じた値幅制限を取得 */
+function getPriceLimit(previousClose: number): number {
+  for (const [threshold, limit] of JP_PRICE_LIMITS) {
+    if (previousClose < threshold) return limit;
+  }
+  return 10000000;
+}
+
+/** 現在価格がストップ高/ストップ安に達しているか判定 */
+function checkPriceLimits(
+  market: Market,
+  currentPrice: number,
+  previousClose: number,
+  side: OrderSide
+): { blocked: boolean; reason?: string } {
+  if (market !== "JP") return { blocked: false };
+  if (!previousClose || previousClose <= 0) return { blocked: false };
+
+  const limit = getPriceLimit(previousClose);
+  const upperLimit = previousClose + limit;
+  const lowerLimit = Math.max(1, previousClose - limit);
+
+  if (side === "BUY" && currentPrice >= upperLimit) {
+    return {
+      blocked: true,
+      reason: `ストップ高 (¥${upperLimit.toLocaleString()}) に達しているため買い注文はできません`,
+    };
+  }
+  if (side === "SELL" && currentPrice <= lowerLimit) {
+    return {
+      blocked: true,
+      reason: `ストップ安 (¥${lowerLimit.toLocaleString()}) に達しているため売り注文はできません`,
+    };
+  }
+
+  return { blocked: false };
+}
+
 interface PlaceOrderParams {
   userId: string;
   symbol: string;
@@ -20,6 +99,13 @@ export async function placeOrder(params: PlaceOrderParams) {
   if (!user.isActive) throw new Error("アカウントが無効です");
 
   const quote = await getQuote(symbol, market);
+
+  // 値幅制限チェック (日本株のストップ高/ストップ安)
+  const limitCheck = checkPriceLimits(market, quote.price, quote.previousClose, side);
+  if (limitCheck.blocked) {
+    throw new Error(limitCheck.reason!);
+  }
+
   const executionPrice = type === "MARKET" ? quote.price : (price || quote.price);
 
   if (type === "LIMIT") {
