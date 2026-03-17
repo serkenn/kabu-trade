@@ -137,6 +137,9 @@ graph LR
 |---|---|
 | 現物取引 | 成行 / 指値注文。日本株 (JP) ・米国株 (US) 対応 |
 | 信用取引 | 買建 (ロング) / 売建 (ショート)。証拠金率は管理者が設定可能 |
+| S株 (単元未満株) | 日本株100株未満の注文。成行・現物のみ、前日終値で約定 (SBI証券ルール準拠) |
+| スリッページ | 成行注文に±0.05〜0.5%のランダム変動を適用。ディレイ価格でのカンニング防止 |
+| ストップ高/ストップ安 | 東証ルールに基づく値幅制限チェック。制限価格到達時は注文をブロック |
 | ポートフォリオ管理 | 保有銘柄・平均取得単価・損益の確認 |
 | 注文履歴 | 全注文のステータス追跡 (PENDING / FILLED / CANCELLED) |
 | 複数通貨 | JPY / USD の残高管理 |
@@ -427,6 +430,7 @@ graph TD
         HISTORY["/history<br/>注文履歴"]
         RANKINGS["/rankings<br/>ランキング"]
         APIKEYS["/apikeys<br/>APIキー管理"]
+        HELP["/help<br/>ヘルプ"]
     end
 
     LOGIN -->|認証成功| TRADE
@@ -435,6 +439,7 @@ graph TD
     TRADE --- HISTORY
     TRADE --- RANKINGS
     TRADE --- APIKEYS
+    TRADE --- HELP
 ```
 
 | パス | 画面 | 主要コンポーネント |
@@ -446,6 +451,7 @@ graph TD
 | `/history` | 注文履歴 | 注文一覧 (ステータスフィルタ) |
 | `/rankings` | ランキング | 総資産・損益額・損益率ランキング、トップ3カード |
 | `/apikeys` | APIキー管理 | キー作成・一覧・削除 |
+| `/help` | ヘルプ | 用語集、ショートカット一覧、S株ルール、ページ説明、ソースコード |
 
 ### 管理画面 (Admin :3001)
 
@@ -486,8 +492,8 @@ graph TD
 | `AuthGuard` | `components/layout/` | 未認証ユーザーをログインにリダイレクト |
 | `Sidebar` | `components/layout/` | ナビゲーション (デスクトップ: ホバー展開サイドバー / モバイル: ハンバーガーメニュー) |
 | `StockSearch` | `components/trade/` | 銘柄コード検索 (デバウンス付き、未登録コード動的取得対応) |
-| `QuoteDisplay` | `components/trade/` | リアルタイム株価表示 |
-| `OrderForm` | `components/trade/` | 注文フォーム (成行/指値/現物/信用、キーボードショートカット対応) |
+| `QuoteDisplay` | `components/trade/` | リアルタイム株価表示 (ストップ高/安価格・バッジ表示) |
+| `OrderForm` | `components/trade/` | 注文フォーム (成行/指値/現物/信用、S株対応、キーボードショートカット) |
 | `PriceChart` | `components/charts/` | Lightweight Charts によるローソク足チャート (日足+日中足、描画ツール) |
 | `Watchlist` | `components/trade/` | お気に入り銘柄リスト |
 
