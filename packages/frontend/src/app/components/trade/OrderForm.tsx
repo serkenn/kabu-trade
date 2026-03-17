@@ -141,11 +141,16 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const qty = parseInt(quantity || "0");
+  const isOddLot = quote?.market === "JP" && qty > 0 && qty < 100;
+
   const estimatedTotal =
     quote && quantity
-      ? (orderType === "LIMIT" && price
-          ? parseFloat(price)
-          : quote.price) * parseInt(quantity || "0")
+      ? (isOddLot
+          ? quote.previousClose
+          : orderType === "LIMIT" && price
+            ? parseFloat(price)
+            : quote.price) * qty
       : 0;
 
   return (
@@ -269,14 +274,29 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
           min="1"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className={`w-full bg-gray-800 border rounded px-2 py-1.5 text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-brand-500 ${
+            isOddLot ? "border-orange-600/50" : "border-gray-700"
+          }`}
           placeholder="100"
           required
         />
       </div>
 
+      {/* S株バッジ */}
+      {isOddLot && (
+        <div className="bg-orange-900/20 border border-orange-700/30 rounded px-2 py-1.5">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-600 text-white">S株</span>
+            <span className="text-[10px] text-orange-400 font-bold">単元未満株</span>
+          </div>
+          <p className="text-[9px] text-orange-300/70">
+            成行注文のみ・現物のみ・前日終値(¥{quote?.previousClose.toLocaleString()})で約定
+          </p>
+        </div>
+      )}
+
       {/* Limit price */}
-      {orderType === "LIMIT" && (
+      {orderType === "LIMIT" && !isOddLot && (
         <div>
           <label className="text-[10px] text-gray-500 mb-0.5 block">指値価格</label>
           <input
@@ -325,7 +345,7 @@ export default function OrderForm({ quote, onOrderPlaced }: Props) {
       >
         {loading
           ? "処理中..."
-          : `${side === "BUY" ? "買い" : "売り"}注文${tradeType === "MARGIN" ? "（信用）" : ""}`}
+          : `${side === "BUY" ? "買い" : "売り"}注文${isOddLot ? "（S株）" : tradeType === "MARGIN" ? "（信用）" : ""}`}
       </button>
     </form>
   );

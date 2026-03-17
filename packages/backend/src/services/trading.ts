@@ -123,17 +123,41 @@ export async function placeOrder(params: PlaceOrderParams) {
 
   const quote = await getQuote(symbol, market);
 
+  // S株判定 (日本株で100株未満)
+  const isOddLot = market === "JP" && quantity < 100;
+
+  if (isOddLot) {
+    // S株ルール: 成行注文のみ
+    if (type === "LIMIT") {
+      throw new Error("S株（単元未満株）は成行注文のみ対応です");
+    }
+    // S株ルール: 信用取引不可
+    if (tradeType === "MARGIN") {
+      throw new Error("S株（単元未満株）は信用取引できません。現物のみ対応です");
+    }
+  }
+
   // 値幅制限チェック (日本株のストップ高/ストップ安)
   const limitCheck = checkPriceLimits(market, quote.price, quote.previousClose, side);
   if (limitCheck.blocked) {
     throw new Error(limitCheck.reason!);
   }
 
-  // 成行注文: スリッページを適用してカンニング防止
-  // 指値注文: ユーザー指定価格を使用
-  const executionPrice = type === "MARKET"
-    ? applySlippage(quote.price, side, market)
-    : (price || quote.price);
+  // 約定価格の決定
+  let executionPrice: number;
+  if (isOddLot) {
+    // S株: 前日終値で約定 (SBI証券ルール準拠)
+    if (!quote.previousClose || quote.previousClose <= 0) {
+      throw new Error("前日終値が取得できないため、S株注文を処理できません");
+    }
+    executionPrice = quote.previousClose;
+  } else if (type === "MARKET") {
+    // 通常成行: スリッページ適用
+    executionPrice = applySlippage(quote.price, side, market);
+  } else {
+    // 指値
+    executionPrice = price || quote.price;
+  }
 
   if (type === "LIMIT") {
     const canExecute =

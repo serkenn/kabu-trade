@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 
-type Tab = "terms" | "shortcuts" | "pages" | "source";
+type Tab = "terms" | "shortcuts" | "skabu" | "pages" | "source";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "terms", label: "用語集" },
   { id: "shortcuts", label: "ショートカット" },
+  { id: "skabu", label: "S株ルール" },
   { id: "pages", label: "ページ説明" },
   { id: "source", label: "ソースコード" },
 ];
@@ -30,6 +31,9 @@ const terms = [
   { term: "出来高", desc: "一定期間内に成立した売買の数量。取引の活発さを示す指標です。" },
   { term: "前日終値", desc: "前営業日の最後に成立した株価。当日の値動きの基準になります。" },
   { term: "ウォッチリスト", desc: "お気に入り銘柄を登録するリスト。取引画面で素早く銘柄を切り替えられます。" },
+  { term: "S株（単元未満株）", desc: "100株未満の株式取引。成行注文・現物のみ対応で、前日終値で約定します。詳しくは「S株ルール」タブを参照。" },
+  { term: "単元株", desc: "取引所で売買できる最小単位。日本株は原則100株が1単元です。100株以上の注文は通常の単元株取引になります。" },
+  { term: "スリッページ", desc: "注文時の表示価格と実際の約定価格のずれ。成行注文では市場の状況により発生します。" },
   { term: "API キー", desc: "Bot/AI から KabuTrade API を利用するための認証キー。パーミッションで操作範囲を制限できます。" },
 ];
 
@@ -129,6 +133,107 @@ export default function HelpPage() {
             <p className="text-xs text-gray-400">
               <span className="text-yellow-400 font-bold">Tip:</span> 数量入力後に <kbd className="px-1 py-0.5 rounded bg-gray-700 text-[10px] font-mono">Enter</kbd> で注文を送信できます。
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* S株ルール */}
+      {tab === "skabu" && (
+        <div className="card">
+          <h2 className="font-bold text-lg mb-4">S株（単元未満株）取引ルール</h2>
+
+          <div className="p-3 rounded bg-orange-900/20 border border-orange-700/30 mb-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-bold px-2 py-0.5 rounded bg-orange-600 text-white">S株</span>
+              <span className="text-sm text-orange-400 font-bold">日本株で100株未満の注文に自動適用</span>
+            </div>
+            <p className="text-xs text-orange-300/70">
+              SBI証券のS株ルールに準拠した単元未満株取引です。
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-bold text-sm text-white mb-2">基本ルール</h3>
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-gray-800">
+                  <tr>
+                    <td className="py-2 text-gray-400 w-32">対象</td>
+                    <td className="py-2 text-gray-200">日本株で <span className="font-bold text-orange-400">100株未満</span> の注文</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">注文方法</td>
+                    <td className="py-2 text-gray-200"><span className="font-bold">成行注文のみ</span>（指値注文は不可）</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">取引種別</td>
+                    <td className="py-2 text-gray-200"><span className="font-bold">現物取引のみ</span>（信用取引は不可）</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">売買</td>
+                    <td className="py-2 text-gray-200">買い・売り <span className="font-bold">両方可能</span></td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">約定価格</td>
+                    <td className="py-2 text-gray-200"><span className="font-bold text-orange-400">前日終値</span> で約定（リアルタイム価格ではありません）</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <h3 className="font-bold text-sm text-white mb-2">通常注文との違い</h3>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="py-2 text-left text-gray-400"></th>
+                    <th className="py-2 text-center text-gray-400">通常注文 (100株以上)</th>
+                    <th className="py-2 text-center text-orange-400">S株 (100株未満)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  <tr>
+                    <td className="py-2 text-gray-400">成行注文</td>
+                    <td className="py-2 text-center text-gray-300">○</td>
+                    <td className="py-2 text-center text-gray-300">○</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">指値注文</td>
+                    <td className="py-2 text-center text-gray-300">○</td>
+                    <td className="py-2 text-center text-red-400">×</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">現物取引</td>
+                    <td className="py-2 text-center text-gray-300">○</td>
+                    <td className="py-2 text-center text-gray-300">○</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">信用取引</td>
+                    <td className="py-2 text-center text-gray-300">○</td>
+                    <td className="py-2 text-center text-red-400">×</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">約定価格</td>
+                    <td className="py-2 text-center text-gray-300">現在値 ± スリッページ</td>
+                    <td className="py-2 text-center text-orange-400">前日終値</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-400">米国株</td>
+                    <td className="py-2 text-center text-gray-300">1株から通常注文</td>
+                    <td className="py-2 text-center text-gray-500">対象外</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-3 rounded bg-gray-800/50 border border-gray-700">
+              <p className="text-xs text-gray-400">
+                <span className="text-yellow-400 font-bold">注意:</span> S株は少額から株式投資を始められるメリットがありますが、
+                約定価格が前日終値に固定されるため、当日の値動きは反映されません。
+                100株以上の注文は自動的に通常注文として処理されます。
+                米国株は1株から通常注文として取引できるため、S株ルールは適用されません。
+              </p>
+            </div>
           </div>
         </div>
       )}
