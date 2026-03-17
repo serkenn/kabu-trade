@@ -220,6 +220,14 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
     // UserInfo 取得
     const evexUser = await fetchUserInfo(tokens.accessToken);
 
+    // discord_roles をフラットな文字列配列に正規化
+    // evex-accounts は [{id, name, ...}] のオブジェクト配列を返す場合がある
+    const discordRoles: string[] = Array.isArray(evexUser.discord_roles)
+      ? evexUser.discord_roles.map((r: unknown) =>
+          typeof r === "string" ? r : (r as { name?: string })?.name || String(r)
+        )
+      : [];
+
     // ローカルユーザー検索 (externalId = sub)
     let user = await prisma.user.findUnique({ where: { externalId: evexUser.sub } });
 
@@ -234,7 +242,7 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
             name: evexUser.name || existingByEmail.name,
             authProvider: "evex",
             discordId: evexUser.discord_id || null,
-            discordRoles: evexUser.discord_roles || [],
+            discordRoles,
           },
         });
       } else {
@@ -247,7 +255,7 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
             passwordHash: "evex-oauth",
             authProvider: "evex",
             discordId: evexUser.discord_id || null,
-            discordRoles: evexUser.discord_roles || [],
+            discordRoles,
           },
         });
       }
@@ -260,7 +268,7 @@ authRouter.get("/evex/callback", async (req: AuthRequest, res: Response) => {
           ...(evexUser.name && evexUser.name !== user.name ? { name: evexUser.name } : {}),
           authProvider: "evex",
           discordId: evexUser.discord_id || null,
-          discordRoles: evexUser.discord_roles || [],
+          discordRoles,
         },
       });
     }
